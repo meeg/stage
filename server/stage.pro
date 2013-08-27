@@ -3,10 +3,6 @@ LANGUAGE	= C++
 
 CONFIG	+= qt warn_on release thread
 
-QMAKE_CFLAGS   += -m32
-QMAKE_CXXFLAGS += -m32
-QMAKE_LFLAGS   += -m32
-
 HEADERS	+= stage.h
 HEADERS	+= utils.h
 HEADERS	+= capser.h
