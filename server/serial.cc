@@ -3121,10 +3121,10 @@ int serialClass::initLaserSerPort() {
 	
 	//close(Ld);
 			
-	Ld = open("/dev/ttyUSB2", O_RDWR | O_NOCTTY | O_NDELAY);
+	Ld = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
 	//Ld = open("/dev/ttyS0", O_RDWR | O_NOCTTY | O_NDELAY);
 	if (Ld == -1) {
-		perror("open_port: Unable to open /dev/ttyUSB2 - ");
+		perror("open_port: Unable to open /dev/ttyUSB0 - ");
 		return -1;
 	} else {
 		fcntl(Ld, F_SETFL, 0);
