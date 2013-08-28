@@ -24,12 +24,7 @@ int serialClass::moveRelativeTime(int ID, double dist, double rampTime,
 	//MRT
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 177;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
-	
-	int dig[ numDigs ];
-	int num = cmdID;
-	int currIndex;
 	
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
 	if ( ( rampTime <= 0.0 ) | ( totalTime <= 0.0 ) ){
@@ -56,148 +51,9 @@ int serialClass::moveRelativeTime(int ID, double dist, double rampTime,
 	unsigned int rampTimeToOutput = (unsigned int) rampTime;
 	unsigned int totalTimeToOutput = (unsigned int) totalTime;
 	
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
-	
-	// ----> ID , SPC, CMD, SPC
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 32; 		//SP
-	currIndex = startindex + numDigs + 1;
-	
-	//printf("currIndex start=%d\n", currIndex);
-	
-		// ----> dist, SPC
-	char distChar[20];
-	int numDistChars = sprintf( distChar, "%d", distToOutput); //convert decimal inte input to character array.
-	//printf("distChar=%s\n", distChar); //printf("length=%d\n", numDistChars);
-	for (int i = 0; i < numDistChars; i++){
-			output[ currIndex ] = distChar[ i ];
-		 	currIndex++;
-	}
-	//printf( "output(%d)=%d\n", i, output[ i ] );
-	output[currIndex] = 32; currIndex ++;
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,cmdID,distToOutput,rampTimeToOutput,totalTimeToOutput);
 
-
-	
-	
-		// ----> rampTime, SPC
-	char rampChar[20];
-	int numRampChars = sprintf( rampChar, "%u", rampTimeToOutput); //convert decimal inte input to character array.
-	//printf("rampChar=%s\n", rampChar); //printf("length=%d\n", numRampChars);
-	for (int i = 0; i < numRampChars; i++){
-		output[ currIndex ] = rampChar[ i ];	
-		currIndex ++;
-		}
-	output[ currIndex ] = 32;
-	currIndex ++;	
-
-	// ----> totalTime, SPC
-	char timeChar[20];
-	int numTimeChars = sprintf( timeChar, "%u", totalTimeToOutput); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numTimeChars; i++){
-		output[ currIndex ] = timeChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[ currIndex ] = 32;
-	currIndex ++;
-	
-		
-	// ----> stopEnable, SPC
-	char stopEnChar[20];
-	int stopEnable = 0;			//pg.89 user manual
-	int numStopEnChars = sprintf( stopEnChar, "%u", stopEnable); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numStopEnChars; i++){
-		output[ currIndex ] = stopEnChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[ currIndex ] = 32;
-	currIndex ++;	
-
-	// ----> stopState, SPC
-	char stopStChar[20];
-	
-	int stopState = 0;
-	int numStopStChars = sprintf( stopStChar, "%u", stopState); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numStopStChars; i++){
-		output[ currIndex ] = stopStChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[currIndex] = 13;
-	currIndex ++;	
-	output[currIndex] = 0;	//null
-	currIndex ++;
-	
-	/*for (int i = 0; i < currIndex; i++){
-		printf( "output(%d)=%d\n", i, output[ i ] );
-	}*/
-		
-		
-	//printf("output:%s\n", output);
-	//test case
-		/*
-   output[0] = 64;	//@
-	output[1] = 49;	//ID
-	output[2] = 32;
-	
-	output[3] = 49;	//cmd = 177
-	output[4] = 55;
-	output[5] = 55;
-	output[6] = 32;
-		
-	output[7] = 52;	//4000
-	output[8] = 48;
-	output[9] = 48;
-	output[10] = 48;
-	output[11] = 32;
-	
-	output[12] = 49;	//1000
-	output[13] = 48;
-	output[14] = 48;
-	output[15] = 48;
-	output[16] = 32;
-	
-	output[17] = 57;	//9000
-	output[18] = 48;
-	output[19] = 48;
-	output[20] = 48;
-	output[21] = 32;
-	
-	output[22] = 48;	//0
-	output[23] = 32;
-	
-	output[24] = 48;	//0
-	output[25] = 32;
-	
-	output[26] = 13;	//CR
-
-	output[27] = 0;	//null
-	for (int i = 0; i < 30; i++){
-		printf( "output(%d)=%d\n", i, output[ i ] );
-	}
-	*/
-
-			
 	if (!writeport(fd, output)) {
 		printf("Err: MRT write failed\n");
 		//close(fd);
@@ -244,12 +100,7 @@ int serialClass::moveAbsoluteTime(int ID, double pos, double acc,
 	//MRT
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 176;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
-	
-	int dig[ numDigs ];
-	int num = cmdID;
-	int currIndex;
 	
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
 	/*if ( 2 * rampTime > totalTime ){
@@ -277,147 +128,8 @@ int serialClass::moveAbsoluteTime(int ID, double pos, double acc,
 	unsigned int accToOutput = (unsigned int) acc;
 	unsigned int totalTimeToOutput = (unsigned int) totalTime;
 			
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
-	
-	// ----> ID , SPC, CMD, SPC
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 32; 		//SP
-	currIndex = startindex + numDigs + 1;
-	
-	//printf("currIndex start=%d\n", currIndex);
-	
-		// ----> dist, SPC
-	char posChar[20];
-	int numDistChars = sprintf( posChar, "%d", posToOutput); //convert decimal inte input to character array.
-	//printf("distChar=%s\n", distChar); //printf("length=%d\n", numDistChars);
-	for (int i = 0; i < numDistChars; i++){
-			output[ currIndex ] = posChar[ i ];
-		 	currIndex++;
-	}
-	//printf( "output(%d)=%d\n", i, output[ i ] );
-	output[currIndex] = 32; currIndex ++;
-
-
-	
-	
-		// ----> rampTime, SPC
-	char accChar[20];
-	int numRampChars = sprintf( accChar, "%u", accToOutput); //convert decimal inte input to character array.
-	//printf("rampChar=%s\n", rampChar); //printf("length=%d\n", numRampChars);
-	for (int i = 0; i < numRampChars; i++){
-		output[ currIndex ] = accChar[ i ];	
-		currIndex ++;
-		}
-	output[ currIndex ] = 32;
-	currIndex ++;	
-
-	// ----> totalTime, SPC
-	char timeChar[20];
-	int numTimeChars = sprintf( timeChar, "%u", totalTimeToOutput); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numTimeChars; i++){
-		output[ currIndex ] = timeChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[ currIndex ] = 32;
-	currIndex ++;
-	
-		
-	// ----> stopEnable, SPC
-	char stopEnChar[20];
-	int stopEnable = 0;			//pg.89 user manual
-	int numStopEnChars = sprintf( stopEnChar, "%u", stopEnable); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numStopEnChars; i++){
-		output[ currIndex ] = stopEnChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[ currIndex ] = 32;
-	currIndex ++;	
-
-	// ----> stopState, SPC
-	char stopStChar[20];
-	
-	int stopState = 0;
-	int numStopStChars = sprintf( stopStChar, "%u", stopState); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numStopStChars; i++){
-		output[ currIndex ] = stopStChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[currIndex] = 13;
-	currIndex ++;	
-	output[currIndex] = 0;	//null
-	currIndex ++;
-	
-	/*for (int i = 0; i < currIndex; i++){
-		printf( "output(%d)=%d\n", i, output[ i ] );
-	}*/
-		
-		
-	//printf("output:%s\n", output);
-	//test case
-		/*
-   output[0] = 64;	//@
-	output[1] = 49;	//ID
-	output[2] = 32;
-	
-	output[3] = 49;	//cmd = 176
-	output[4] = 55;
-	output[5] = 54;
-	output[6] = 32;
-		
-	output[7] = 45;	//-
-	output[8] = 53;	//5000
-	output[9] = 48;
-	output[10] = 48;
-	output[11] = 48;
-	output[12] = 32;
-	
-	output[13] = 49;	//1000
-	output[14] = 48;
-	output[15] = 48;
-	output[16] = 48;
-	output[17] = 32;
-	
-	output[18] = 57;	//9000
-	output[19] = 48;
-	output[20] = 48;
-	output[21] = 48;
-	output[22] = 32;
-	
-	output[23] = 48;	//0
-	output[24] = 32;
-	
-	output[25] = 48;	//0
-	output[26] = 32;
-	
-	output[27] = 13;	//CR
-
-	output[28] = 0;	//null
-	
-	for (int i = 0; i < 30; i++){
-		printf( "output(%d)=%d\n", i, output[ i ] );
-	}*/
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,cmdID,posToOutput,accToOutput,totalTimeToOutput);
 			
 	if (!writeport(fd, output)) {
 		printf("Err: MAT write failed\n");
@@ -460,12 +172,7 @@ int serialClass::moveRelativeVel(int ID, double dist, double acc,
 	//MRT
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 135;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
-	
-	int dig[ numDigs ];
-	int num = cmdID;
-	int currIndex;
 	
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
 	/*if ( ){
@@ -484,12 +191,6 @@ int serialClass::moveRelativeVel(int ID, double dist, double acc,
 	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	dist *= ticksPerMM;
 	acc *= accFactor;
 	vel *= velFactor;
@@ -498,140 +199,9 @@ int serialClass::moveRelativeVel(int ID, double dist, double acc,
 	unsigned int accToOutput = (unsigned int) acc;
 	unsigned int velToOutput = (unsigned int) vel;
 	
-	
-	// ----> ID , SPC, CMD, SPC
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 32; 		//SP
-	currIndex = startindex + numDigs + 1;
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,cmdID,distToOutput,accToOutput,velToOutput);
 	
-	//printf("currIndex start=%d\n", currIndex);
-	
-		// ----> dist, SPC
-	char distChar[20];
-	int numDistChars = sprintf( distChar, "%d", distToOutput); //convert decimal inte input to character array.
-	//printf("distChar=%s\n", distChar); 
-	//printf("length=%d\n", numDistChars);
-	for (int i = 0; i < numDistChars; i++){
-			output[ currIndex ] = distChar[ i ];
-		 	currIndex++;
-	}
-	//printf( "output(%d)=%d\n", i, output[ i ] );
-	output[currIndex] = 32; currIndex ++;
-
-
-	
-	
-		// ----> rampTime, SPC
-	char accChar[20];
-	int numRampChars = sprintf( accChar, "%u", accToOutput); //convert decimal inte input to character array.
-	//printf("accChar=%s\n", accChar); //printf("length=%d\n", numRampChars);
-	for (int i = 0; i < numRampChars; i++){
-		output[ currIndex ] = accChar[ i ];	
-		currIndex ++;
-		}
-	output[ currIndex ] = 32;
-	currIndex ++;	
-
-	// ----> totalTime, SPC
-	char velChar[20];
-	int numTimeChars = sprintf( velChar, "%u", velToOutput); //convert decimal inte input to character array.
-	//printf("velChar=%s\n", velChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numTimeChars; i++){
-		output[ currIndex ] = velChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[ currIndex ] = 32;
-	currIndex ++;
-	
-		
-	// ----> stopEnable, SPC
-	char stopEnChar[20];
-	int stopEnable = 0;
-	int numStopEnChars = sprintf( stopEnChar, "%u", stopEnable); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numStopEnChars; i++){
-		output[ currIndex ] = stopEnChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[ currIndex ] = 32;
-	currIndex ++;	
-
-	// ----> stopState, SPC
-	char stopStChar[20];
-	int stopState = 0;
-	int numStopStChars = sprintf( stopStChar, "%u", stopState); //convert decimal inte input to character array.
-	//printf("timeChar=%s\n", timeChar); printf("length=%d\n", numTimeChars);
-	for (int i = 0; i <  numStopStChars; i++){
-		output[ currIndex ] = stopStChar[ i ];
-		//printf( "output(%d)=%d\n", i, output[ currIndex ] );
-		currIndex ++;
-
-	}
-	output[currIndex] = 13;
-	currIndex ++;	
-	output[currIndex] = 0;	//null
-	currIndex ++;
-	
-			
-			
-	//test case
-	/*
-	output[0] = 64;	//@
-	output[1] = 49;	//ID
-	output[2] = 32;
-	
-	output[3] = 49;	//cmd = 135
-	output[4] = 51;
-	output[5] = 53;
-	output[6] = 32;
-		
-	output[7] = 52;	//4000
-	output[8] = 48;
-	output[9] = 48;
-	output[10] = 48;
-	output[11] = 32;
-	
-	output[12] = 49;	//1000
-	output[13] = 48;
-	output[14] = 48;
-	output[15] = 48;
-	output[16] = 32;
-	
-	output[17] = 57;	//9000
-	output[18] = 48;
-	output[19] = 48;
-	output[20] = 48;
-	output[21] = 32;
-	
-	output[22] = 48;	//0
-	output[23] = 32;
-	
-	output[24] = 48;	//0
-	output[25] = 32;
-	
-	output[26] = 13;	//CR
-
-	output[27] = 0;	//null		
-		
-	//printf("output:%s\n", output);
-
-	for (int i = 0; i < 30; i++){
-		printf( "output(%d)=%d\n", i, output[ i ] );
-	}*/
-
-			
 	if (!writeport(fd, output)) {
 		printf("Err: MRV write failed\n");
 		//close(fd);
@@ -675,9 +245,6 @@ int serialClass::clearPoll( int ID, int whichBit){//, bool debugOn ){
 	int numToSend;
 	numToSend = (int) pow(2, whichBit);
 	//cout << numToSend << endl;
-	int numWordDigs = returnNumDigits(numToSend);
-	//cout << numDigs <<endl;
-	int dig[ 6 ];		//always <6 anyways
 	
 	//~~~~~~~~~~~~~~~~~~~~~~~~~`
 	if (  ( whichBit > 15 ) | ( whichBit < 0 ) ){
@@ -685,32 +252,8 @@ int serialClass::clearPoll( int ID, int whichBit){//, bool debugOn ){
 		return -1;
 	}
 	
-	
-	for(int i = numWordDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + numToSend % 10;
-		numToSend /= 10;
-	}
-	
-	char output[20];
-	//output = (char*) malloc( (4 + numWordDigs + 1) * sizeof(char) );		
-	//free(output);
-	//output = NULL;
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	
-	output[3] = NUMSTART + cmdID;
-	output[4] = 32;		// space	  
-
-	int startindex = 5;
-	for (int i = startindex; i < startindex+ numWordDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//printf("%d\n", i);
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numWordDigs] = 13; 		//CR
-	output[startindex + numWordDigs + 1] = 0; 	//null
-	output[startindex + numWordDigs + 1] = 0; 	//null
+	char output[40];
+	sprintf(output,"@%d %d %d\r",ID,cmdID,numToSend);
 		
 	//tcflush(fd, TCIFLUSH);	//flush port
 
@@ -756,27 +299,10 @@ int serialClass::poll(int ID, char* strToReturn){
 	//POL
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 27;
-	const int numDigs = 2;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR
+	sprintf(output,"@%d %d\r",ID,cmdID);
 
 	//tcflush(fd, TCIFLUSH);	//flush port
 	
@@ -819,31 +345,10 @@ int serialClass::returnPosition( int ID, double* pos ){
 	//RIO
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 12;
-	const int numDigs = 2;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 32;		//SPC
-	output[startindex + numDigs + 1] = 49;	//1
-	output[startindex + numDigs + 2] = 13; //CR	
-	output[startindex + numDigs + 3] = 0; 	//null
-
+	sprintf(output,"@%d %d 1\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: RRG write failed\n");
@@ -919,31 +424,12 @@ int serialClass::readIO(int ID, char* strToReturn){
 	//RIO
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 21;
-	const int numDigs = 2;
 	//~~~~~~~~~~~~~~~~~~~
 	
+	char output[40];
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	//printf("in readIO\n");
 
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
-	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-
-	
 	if (!writeport(fd, output)) {
 		printf("Err: RIO write failed\n");
 		//close(fd);
@@ -986,32 +472,10 @@ int serialClass::initDualLoop(int ID){
 	//DLC
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 243;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-	output[startindex + numDigs + 1] = 0;	//null		
-	
-	std::stringstream stream;
-	stream <<"@"<<ID<<" 243\n\0";
-	strcpy(output, stream.str().c_str());
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: DLC write failed\n");
@@ -1051,28 +515,10 @@ int serialClass::initSingleLoop(int ID){
 	//SLC
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 244;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-	output[startindex + numDigs + 1] = 0;	//null		
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: SLC write failed\n");
@@ -1113,9 +559,12 @@ int serialClass::setupEncoder(int ID){
 	//SEE
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 192;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	
+	char output[40];
+	sprintf(output,"@%d %d 0 0 2\r",ID,cmdID); //or should it be 0 10000 0? see old code below
+
+/*
 	int dig[ numDigs ];
 	int num = cmdID;
 	for(int i = numDigs - 1; i >= 0 ; i--)
@@ -1157,6 +606,7 @@ int serialClass::setupEncoder(int ID){
 	stream <<"@"<<ID<<" 192 0 0 2\n\0";
 
 	strcpy(output, stream.str().c_str());
+*/
 	if (!writeport(fd, output)) {
 		printf("Err: SEE write failed\n");
 		//close(fd);
@@ -1196,29 +646,10 @@ int serialClass::halt(int ID){
 	//HAL
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 2;
-	const int numDigs = 1;
 	//~~~~~~~~~~~~~~~~~~~
-	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
+
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-	output[startindex + numDigs + 1] = 0; 		//null
-		
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: HALT write failed\n");
@@ -1272,36 +703,13 @@ int serialClass::killActiveMotors(void){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::stop(int ID){
-	//HAL
+	//STP
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 3;
-	const int numDigs = 1;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	
-	output[startindex + numDigs] = 32;
-	output[startindex + numDigs + 1] = 45;		//-
-	output[startindex + numDigs + 2] = 49;		//1
-	output[startindex + numDigs + 3] = 13; 		//CR	
-	output[startindex + numDigs + 4] = 0; 		//null
-		
+	sprintf(output,"@%d %d -1\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: STOP write failed\n");
@@ -1341,32 +749,13 @@ int serialClass::stop(int ID){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::enableMotor(int ID){
-	//RIO
+	//EMD
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 227;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-	output[startindex + numDigs+1] = 0; 		//null
-	
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: EMD write failed\n");
@@ -1404,40 +793,13 @@ int serialClass::enableMotor(int ID){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::resetMotor(int ID){
-	//RIO
+	//RST
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 4;
-	const int numDigs = 1;
 	//~~~~~~~~~~~~~~~~~~~
-	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
-	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-	output[startindex + numDigs + 1] = 0; 		//null
 
-			
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	output[3] = NUMSTART + 4;		// space	  
-	output[4] = 13;		// space	  
-	output[5] = 0;		// space	  
-	
+	char output[40];
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: RST write failed\n");
@@ -1590,12 +952,11 @@ int serialClass::changeAntiHunt(int ID) {
 
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 150;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	char output[40];
 	
 	std::stringstream stream;
-	stream <<"@"<<ID<<" 150 4 6\n\0";
+	stream <<"@"<<ID<<" 150 4 6\r\0";
 
 	strcpy(output, stream.str().c_str());
 	if (!writeport(fd, output)) {
@@ -1642,12 +1003,11 @@ int serialClass::goClosedLoop(int ID) {
 
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 142;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	char output[40];
 	
 	std::stringstream stream;
-	stream <<"@"<<ID<<" 142\n\0";
+	stream <<"@"<<ID<<" 142\r\0";
 
 	strcpy(output, stream.str().c_str());
 	if (!writeport(fd, output)) {
@@ -1694,36 +1054,11 @@ int serialClass::changeACKdelay(int ID, double delay) {
 
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 173;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
-	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
-	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 32; 		//SPC
-	output[startindex + numDigs + 1]	= 49;	//1		//the delay is number is 120us * this number.
-	output[startindex + numDigs + 2]	= 48;	//0
-	output[startindex + numDigs + 3] = 13;	//CR
-	output[startindex + numDigs + 4] = 0;	//null	
-	
-	std::stringstream stream;
-	stream <<"@"<<ID<<" 173 10\n\0";
 
-	strcpy(output, stream.str().c_str());
+	char output[40];
+	sprintf(output,"@%d %d 10\r",ID,cmdID); //the delay is number is 120us * this number.
+	
 	if (!writeport(fd, output)) {
 		printf("Err: ADL write failed\n");
 		//close(fd);
@@ -2138,28 +1473,10 @@ int serialClass::zeroTarget(int ID){
 	//ZTP
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 145;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	output[startindex + numDigs] = 13; 		//CR	
-	output[startindex + numDigs + 1] = 0;	//null		
+	sprintf(output,"@%d %d\r",ID,cmdID);
 	
 	if (!writeport(fd, output)) {
 		printf("Err: ZTP write failed\n");
@@ -2243,47 +1560,10 @@ int serialClass::setIObit(int ID, int whichBit, int state){
 	//set an IO bit.  state = -1 for high-Z, 1/0 for high/low.
 	//~~~~~~~~~~~~~~~~~~~
 	const int cmdID = 188;
-	const int numDigs = 3;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
 	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	
-	
-	//NOTE: we only should ever have an actual bit that's <=9, 
-	//so if double-digits are needed then this code must be rewritten to be general
-	output[6] = 32;	//SPC
-	output[7] = whichBit + NUMSTART;	// I/O line #
-	output[8] = 32;	//SPC
-	
-	printf("output[7] (bit)=%d\n", output[7]);
-	
-	if ( state == -1 ){
-		output[9] =	45;	//-
-		output[10] = 49;	//1
-		output[11] = 13;
-		output[12] = 0;
-	}else{
-		output[9] =	state + NUMSTART;	//-
-		output[10] = 13;
-		output[11] = 0;
-	}
-		
+	sprintf(output,"@%d %d %d %d\r",ID,cmdID,whichBit,state);
 			
 	if (!writeport(fd, output)) {
 		printf("Err: CIO write failed\n");
@@ -2566,19 +1846,16 @@ int serialClass::resetAsHomePoint(int ID ){
 		
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::clearInternalStatus(int ID) {
-        //ADL
+        //CIS
 
 
         //~~~~~~~~~~~~~~~~~~~
         const int cmdID = 163;
-        const int numDigs = 3;
         //~~~~~~~~~~~~~~~~~~~
+
         char output[40];
+	sprintf(output,"@%d %d\r",ID,cmdID);
 
-        std::stringstream stream;
-        stream <<"@"<<ID<<" 163\n\0";
-
-        strcpy(output, stream.str().c_str());
         if (!writeport(fd, output)) {
                 printf("Err: CIS write failed\n");
                 //close(fd);
@@ -2738,50 +2015,11 @@ int serialClass::setLaserWidth_ns(double width){
 		return -1;
 	}
 			
-	char doubleArr[10];
-	//char intArr[3];
-	
-	sprintf(doubleArr, "%01.2f", width);
 	//sprintf(intArr, "%d", width);
 	int number = (int) width;
 	
-			
-	int numIntDigs = 0;
-	if ( number >= 100 ){
-		numIntDigs = 3;
-	} else if ( number >= 10 ){
-		numIntDigs = 2;
-	} else if (number >= 0 ){
-		numIntDigs = 1;
-	}
-	
-	//string doubleStr(doubleArr);
-	//int doubleLen = doubleStr.length();
-	//printf("doubleArr=%s\n", doubleArr);
-	//printf("intArr=%s\n", intArr);	
-	
-	char output[20]={"puls:widt "};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	
-	
-	ostringstream sout;
-	sout << number;
-
-	char *buff = new char[sout.str().length() + 1];
-	strcpy(buff, sout.str().c_str());
-	
-	int buffIndex = 0;
-	for( int i = len; i < len + numIntDigs; i++){
-		output[ i ] = buff[buffIndex];
-		buffIndex++;
-	}
-	
-	output[ len + numIntDigs ] = 'n';
-	output[ len + numIntDigs + 1 ] = 's';
-	output[ len + numIntDigs + 2 ] = 13;	
-	output[ len + numIntDigs + 3 ] = 0;		
+        char output[40];
+	sprintf(output,"puls:widt %dns\r",number);
 	
 	printf("output=%s<cr>\n", output);
 	
@@ -2840,54 +2078,10 @@ int serialClass::setLaserAmp_mV(double amp){
 		return -1;
 	}
 			
-	char doubleArr[10];
-	//char intArr[3];
-	
-	sprintf(doubleArr, "%01.2f", amp);
-	//sprintf(intArr, "%d", amp);
 	int number = (int) amp;
 	
-			
-	int numIntDigs = 0;
-	if ( number >= 10000 ){
-		numIntDigs = 5;
-	} else if ( number >= 1000 ){
-		numIntDigs = 4;
-	} else if ( number >= 100 ){
-		numIntDigs = 3;
-	} else if (number >= 10 ){
-		numIntDigs = 2;
-	} else if (number >= 1 ){
-		numIntDigs = 1;
-	}
-	
-	//string doubleStr(doubleArr);
-	//int doubleLen = doubleStr.length();
-	//printf("doubleArr=%s\n", doubleArr);
-	//printf("intArr=%s\n", intArr);	
-	
-	char output[20]={"voltage "};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	
-	
-	ostringstream sout;
-	sout << number;
-
-	char *buff = new char[sout.str().length() + 1];
-	strcpy(buff, sout.str().c_str());
-	
-	int buffIndex = 0;
-	for( int i = len; i < len + numIntDigs; i++){
-		output[ i ] = buff[buffIndex];
-		buffIndex++;
-	}
-	
-	output[ len + numIntDigs ] = 'm';
-	output[ len + numIntDigs + 1] = 'V';	
-	output[ len + numIntDigs + 2 ] = 13;	
-	output[ len + numIntDigs + 3 ] = 0;		
+        char output[40];
+	sprintf(output,"voltage %dmV\r",number);
 	
 	printf("output=%s<cr>\n", output);
 	
@@ -2938,13 +2132,7 @@ int serialClass::setLaserAmp_mV(double amp){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::sendLaserTrigger(void){
 	
-	char output[30]={"trig:sour IMM"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 10;
-	output[len+2] = 0;	
+	char output[30]={"trig:sour IMM\r"};
 		
 	if (!writeport(Ld, output)) {
 		printf("Err: laser trigger write failed\n");
@@ -2986,13 +2174,7 @@ int serialClass::sendLaserTrigger(void){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::turnOffLaserEcho( void ){
 		
-	char output[30]={"syst:comm:serial:echo off"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 10;
-	output[len+2] = 0;	
+	char output[30]={"syst:comm:serial:echo off\r"};
 	
 	if (!writeport(Ld, output)) {
 		printf("Err: laser echo write failed\n");
@@ -3030,13 +2212,7 @@ int serialClass::turnOffLaserEcho( void ){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::disableLaserFlowControl(void){
 	
-	char output[50]={"syst:comm:serial:control:rts on"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 10;
-	output[len+2] = 0;
+	char output[50]={"syst:comm:serial:control:rts on\r"};
 	
 	if (!writeport(Ld, output)) {
 		printf("Err: laser flowControl write failed\n");
@@ -3074,13 +2250,7 @@ int serialClass::disableLaserFlowControl(void){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::requestLaserID(void){
 	
-	char output[30]={"*IDN?"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 10;
-	output[len+2] = 0;	
+	char output[30]={"*IDN?\r"};
 	
 	if (!writeport(Ld, output)) {
 		printf("Err: laser *IDN write failed\n");
@@ -3174,15 +2344,7 @@ int serialClass::initLaserSerPort() {
 int serialClass::laserRemoteEnable( void ){
 	//width in nanoseconds
 	
-	char output[20]={"remote"};
-	//string outputStr(output);
-	//int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[6] = 13;
-	output[7] = 0;
-	
-	//output[len+1] = 0;
-	//output[len+2] = 0;	
+	char output[20]={"remote\r"};
 	
 	if (!writeport(Ld, output)) {
 		printf("Err: laser remote write failed\n");
@@ -3222,12 +2384,7 @@ int serialClass::laserRemoteEnable( void ){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserEnableOutput( void ){
 	
-	char output[20]={"output on"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 0;
+	char output[20]={"output on\r"};
 		
 	if (!writeport(Ld, output)) {
 		printf("Err: laser enable output write failed\n");
@@ -3267,12 +2424,7 @@ int serialClass::laserEnableOutput( void ){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserDisableOutput( void ){
 	
-	char output[20]={"output off"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 0;
+	char output[20]={"output off\r"};
 		
 	if (!writeport(Ld, output)) {
 		printf("Err: laser enable disable write failed\n");
@@ -3313,12 +2465,7 @@ int serialClass::laserDisableOutput( void ){
 int serialClass::laserLocalEnable( void ){
 	//width in nanoseconds
 	
-	char output[20]={"local"};
-	string outputStr(output);
-	int len = outputStr.length();
-	//printf("len=%d\n", len);
-	output[len] = 13;
-	output[len+1] = 0;
+	char output[20]={"local\r"};
 		
 	if (!writeport(Ld, output)) {
 		printf("Err: laser local write failed\n");
