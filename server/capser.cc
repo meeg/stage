@@ -10,11 +10,11 @@
 
 int writeport(int fd, char *chars) {
 	int len = strlen(chars);
-	chars[len] = 0x0d; // stick a <CR> after the command
-	chars[len+1] = 0x00; // terminate the string properly
-
-	int n = write(fd, chars, strlen(chars));
-	if (n < 0) {
+	//printf("writeport: %s\n",chars);
+	if (strchr(chars,'\r') - chars != len-1)
+		printf("writeport: did not find \\r as last character of output");
+	int n = write(fd, chars, len);
+	if (n != len) {
 		fputs("write failed!\n", stderr);
 		return 0;
 	}
@@ -23,16 +23,46 @@ int writeport(int fd, char *chars) {
 
 int readport(int fd, char *result) {
 	int iIn = read(fd, result, 254);
-	result[iIn-1] = 0x00;
 	if (iIn < 0) {
 		if (errno == EAGAIN) {
 			printf("SERIAL EAGAIN ERROR\n");
+			result[0] = '\0';
 			return -2;
 		} else {
 			printf("SERIAL read error %d %s\n", errno, strerror(errno));
 			return 0;
 		}
-	}                    
+	}
+	result[iIn] = 0x00;
+	//printf("readport: %s\nend readport\n",result);
+	return 1;
+}
+
+int readport_blocking(int fd, char *result, char *end) {
+	int end_len = strlen(end);
+	int read_count = 0;
+	int iIn;
+	while (true) {
+		//printf("ready to read\n");
+		iIn  = read(fd, result+read_count, 1);
+		//printf("read %d chars: %d\n",iIn,result[read_count]);
+		if (iIn != 1) {
+			if (errno == EAGAIN) {
+				printf("SERIAL EAGAIN ERROR\n");
+				result[0] = '\0';
+				return -2;
+			} else {
+				printf("SERIAL read error %d %s\n", errno, strerror(errno));
+				return 0;
+			}
+		}
+		read_count++;
+		if (read_count > end_len && strncmp(result+(read_count-end_len),end,end_len)==0) {
+			break;
+		}
+	}
+	result[read_count] = 0x00;
+	//printf("readport: %s\nend readport\n",result);
 	return 1;
 }
 

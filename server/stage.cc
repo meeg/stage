@@ -328,15 +328,15 @@ int initEverything(void){
 	status = s.initLaserSerPort();
 	
 	status = s.laserRemoteEnable();
-	sleep (0.5);
+	//sleep (0.5);
 	status = s.disableLaserFlowControl();
-	sleep (0.2);
-	status = s.turnOffLaserEcho();
-	sleep (0.2);
+	//sleep (0.2);
+	status = s.turnOnLaserEcho();
+	//sleep (0.2);
 	status = s.setLaserWidth_ns(desiredLaserWidth);
-	sleep (0.2);
+	//sleep (0.2);
 	status = s.setLaserAmp_mV(desiredLaserAmp);
-	sleep (0.2);
+	//sleep (0.2);
 	status = s.laserEnableOutput();
 	sleep (0.2);
 		
@@ -382,10 +382,14 @@ int initEverything(void){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int motInitSequence(int ID){
+	int status;
 	//s.enableMotor(ID);		//bad response always?
 	
 	//printf("ID=%d\n",ID);
-	int status = s.resetMotor(ID);		//has built-in delay for resetting
+	status = s.resetMotor(ID);		//has built-in delay for resetting
+	s.printPSW(ID);
+	s.clearAllPSWbits(ID);
+	s.clearInternalStatus(ID);
 	
 	//define the target as here, else it could be undefined and the absolute command may be undefined
 
@@ -401,8 +405,8 @@ int motInitSequence(int ID){
 	endProgramOnError(status);
 		*/
 
-	status = s.changeACKdelay( ID, 32.0 );
-	if ( status == -1 ) return -1;
+	//status = s.changeACKdelay( ID, 32.0 );
+	//if ( status == -1 ) return -1;
 
 	/*
 	status = s.setupEncoder(ID);
@@ -419,16 +423,52 @@ int motInitSequence(int ID){
 	//status = s.initIO(ID);
 	//if ( status == -1 ) return -1;
 
-	status = s.zeroTarget(ID);
-	if ( status == -1 ) return -1;					
+	//status = s.zeroTarget(ID);
+	//if ( status == -1 ) return -1;					
 	
-	status = s.changeAntiHunt(ID);
+	//status = s.changeAntiHunt(ID);
 	//if ( status == -1 ) return -1;
 		
 	
-	sleep(0.001);	
-	status = s.clearPoll(ID, 2);
+	//sleep(0.001);	
+	//status = s.clearPoll(ID, 2);
+	//if ( status == -1 ) return -1;
+
+	s.printPSW(ID);
+	s.clearAllPSWbits(ID);
+	
+	status = s.writeInitProgram(ID);
+	sleep(0.1);	
+	s.printPSW(ID);
+	s.clearAllPSWbits(ID);
+
+	status = s.runInitProgram(ID);
 	if ( status == -1 ) return -1;
+	sleep(1.0);	
+	s.printPSW(ID);
+	s.clearAllPSWbits(ID);
+
+	switch (ID){
+		case X_AXIS_ID:
+		case Y_AXIS_ID:
+			status = s.writeHomeProgramXY(ID);
+			break;
+		case Z_AXIS_ID:
+			status = s.writeHomeProgramZ(ID);
+			break;
+		default:
+			printf("Err: invalid ID");
+			return -1;
+	}
+	sleep(0.1);	
+	s.printPSW(ID);
+	s.clearAllPSWbits(ID);
+
+	status = s.runHomeProgram(ID);
+	if ( status == -1 ) return -1;
+	sleep(1.0);	
+	s.printPSW(ID);
+	s.printIO(ID);
 		
 	return 0;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   

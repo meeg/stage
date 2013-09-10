@@ -14,18 +14,53 @@ using namespace std;
 //=================================================================================
 //=================================================================================
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::timeToTicks(double time){
+	return (int) (time/120e-6); //120 us/tick
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::moveRelativeTime(int ID, double dist, double rampTime, 
-												double totalTime){
+double serialClass::screwPitch(int ID){
+	switch (ID){
+		case X_AXIS_ID:
+		case Y_AXIS_ID:
+			return 0.2*25.4;
+		case Z_AXIS_ID:
+			return 0.25*25.4;
+		default:
+			printf("Err: invalid ID");
+			return 1.0; //dummy value
+	}
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-			
-	
-	//MRT
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 177;
-	//~~~~~~~~~~~~~~~~~~~
-	
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+double serialClass::distPerCount(int ID){
+	return screwPitch(ID)/8000.0; //8000 counts per revolution
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::distToCounts(int ID, double dist){
+	return (int) (dist/distPerCount(ID));
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::velToSVU(int ID, double vel){
+	double maxVel = screwPitch(ID)*4000.0/60.0; //4000 RPM
+	int velInt = (int) (pow(2,31.0)*vel/maxVel);
+	printf("vel = %f maxVel=%f velInt = %d\n",vel,maxVel,velInt);
+	return velInt;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::accToSAU(int ID, double acc){
+	double maxAcc = screwPitch(ID)*4000.0/60.0/2.0/120e-6; //maxVel/2/tick
+	int accInt = (int) (pow(2,30.0)*acc/maxAcc);
+	printf("acc = %f maxAcc=%f accInt = %d\n",acc,maxAcc,accInt);
+	return accInt;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::moveRelativeTime(int ID, double dist, double rampTime, double totalTime){
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
 	if ( ( rampTime <= 0.0 ) | ( totalTime <= 0.0 ) ){
 		printf("Err: serialClass::moveRelativeTime().  Time parameters either zero or negative\n");
@@ -42,74 +77,22 @@ int serialClass::moveRelativeTime(int ID, double dist, double rampTime,
 	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	//format to proper units:
-	dist *= ticksPerMM;
-	rampTime *= ticksPerSecond;
-	totalTime *= ticksPerSecond;
-	
-	unsigned int distToOutput = (unsigned int) dist;
-	unsigned int rampTimeToOutput = (unsigned int) rampTime;
-	unsigned int totalTimeToOutput = (unsigned int) totalTime;
-	
-	char output[40];
-	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,cmdID,distToOutput,rampTimeToOutput,totalTimeToOutput);
-
-	if (!writeport(fd, output)) {
-		printf("Err: MRT write failed\n");
-		//close(fd);
-		return -1;
-	}
-	else{
-		printf("MRT written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			printf("ACK MRT\n");
-			return 0;
-	}else{
-		printf("Err: bad MRT response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,MRT,distToCounts(ID,dist),timeToTicks(rampTime),timeToTicks(totalTime));
+	return writeAndCheckACK(ID, output);
 }
 
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::moveAbsoluteTime(int ID, double pos, double acc, 
-												double totalTime){
-
-
-
-			
-	
-	//MRT
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 176;
-	//~~~~~~~~~~~~~~~~~~~
-	
+int serialClass::moveAbsoluteTime(int ID, double pos, double accTime, double totalTime){
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
 	/*if ( 2 * rampTime > totalTime ){
 		printf("Err: serialClass::moveAbsoluteTime().  Ramp Time Too Large Compared to Total Time\n");
 		return -1;
 	}*/
-	if ( ( acc <= 0.0 ) | ( totalTime <= 0.0 ) ){
+	if ( ( accTime <= 0.0 ) | ( totalTime <= 0.0 ) ){
 		printf("Err: serialClass::moveAbsoluteTime().  Acc or time parameters either zero or negative\n");
-		printf("acc=%f, totalTime=%f\n", acc, totalTime);
+		printf("accTime=%f, totalTime=%f\n", accTime, totalTime);
 
 		return -1;
 	}
@@ -119,61 +102,13 @@ int serialClass::moveAbsoluteTime(int ID, double pos, double acc,
 	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	//format to proper units:
-	pos *= ticksPerMM;
-	acc *= ticksPerSecond;
-	totalTime *= ticksPerSecond;
-	
-	unsigned int posToOutput = (unsigned int) pos;
-	unsigned int accToOutput = (unsigned int) acc;
-	unsigned int totalTimeToOutput = (unsigned int) totalTime;
-			
-	char output[40];
-	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,cmdID,posToOutput,accToOutput,totalTimeToOutput);
-			
-	if (!writeport(fd, output)) {
-		printf("Err: MAT write failed\n");
-		//close(fd);
-		return -1;
-	}
-	else{
-		printf("MAT written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			printf("ACK MAT\n");
-			return 0;
-	}else{
-		printf("Err: bad MAT response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,MAT,distToCounts(ID,pos),timeToTicks(accTime),timeToTicks(totalTime));
+	return writeAndCheckACK(ID, output);
 }
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   	
-int serialClass::moveRelativeVel(int ID, double dist, double acc, 
-												double vel){
-	
-	//MRT
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 135;
-	//~~~~~~~~~~~~~~~~~~~
-	
+int serialClass::moveRelativeVel(int ID, double dist, double acc, double vel){
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
 	/*if ( ){
 		printf("Err: serialClass::moveRelativeVel().  Ramp Time Too Large Compared to Total Time\n");
@@ -191,48 +126,8 @@ int serialClass::moveRelativeVel(int ID, double dist, double acc,
 	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	dist *= ticksPerMM;
-	acc *= accFactor;
-	vel *= velFactor;
-	
-	unsigned int distToOutput = (unsigned int) dist;
-	unsigned int accToOutput = (unsigned int) acc;
-	unsigned int velToOutput = (unsigned int) vel;
-	
-	char output[40];
-	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,cmdID,distToOutput,accToOutput,velToOutput);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: MRV write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("MRV written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-		
-	}	
-	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			printf("ACK\n");
-			return 0;
-	}else{
-		printf("Err: bad MRV response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	return -1;		//should never be here
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,MRV,distToCounts(ID,dist),accToSAU(ID,acc),velToSVU(ID,vel));
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -240,96 +135,32 @@ int serialClass::moveRelativeVel(int ID, double dist, double acc,
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::clearPoll( int ID, int whichBit){//, bool debugOn ){
 	//bit 0..15
-	//CPL
-	int cmdID = 1;
-	int numToSend;
-	numToSend = (int) pow(2, whichBit);
-	//cout << numToSend << endl;
-	
 	//~~~~~~~~~~~~~~~~~~~~~~~~~`
 	if (  ( whichBit > 15 ) | ( whichBit < 0 ) ){
 		printf("Err: serialClass::clearPoll().  Invalid Bit Request\n");
 		return -1;
 	}
 	
-	char output[40];
-	sprintf(output,"@%d %d %d\r",ID,cmdID,numToSend);
-		
-	//tcflush(fd, TCIFLUSH);	//flush port
-
-	if (!writeport(fd, output)) {
-		printf("Err: CLP write failed\n");
-		//close(fd);
-		return -1;
-	}
-	else{
-		//if ( debugOn )
-		//printf("CLP written:%s\n", output);
-	
-		//tcflush(fd, TCIFLUSH);	//flush port
-		//return checkForACK( ID, output );		//if reply is device ID, then all worked.
-		
-	}
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			//printf("ACK CPL\n");
-			return 0;
-	}else{
-		printf("Err: bad CPL response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	return -1;		//should never be here
+	sprintf(output,"@%d %d %d\r",ID,CPL,1 << whichBit);
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 	
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::poll(int ID, char* strToReturn){
-	//POL
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 27;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-
-	//tcflush(fd, TCIFLUSH);	//flush port
-	
-	if (!writeport(fd, output)) {
-		printf("Err: POL write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("POL written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-		
-	}
+	sprintf(output,"@%d %d\r",ID,POR);
+	writeMotSerPort(output);
 		
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
+	getMotReply( replyData);	
 	if ( replyData[0] == '#') {
 			printf("DATA POL\n");
 			strcpy(strToReturn, replyData);
 			return 0;
 	}else{
-		printf("Err: bad CPL response\n");
+		printf("Err: bad POR response\n");
 		printf("got:%s\n", replyData);
 
 		//printf( "\n" );
@@ -342,111 +173,53 @@ int serialClass::poll(int ID, char* strToReturn){
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 int serialClass::returnPosition( int ID, double* pos ){
-	//RIO
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 12;
-	//~~~~~~~~~~~~~~~~~~~
+	int posCount;
+	int status = readRegister(ID,1,&posCount);
 	
-	char output[40];
-	sprintf(output,"@%d %d 1\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: RRG write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("RRG written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-		//flush();
-	}	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	
-	
-	char hexResult[12];
-	if ( replyData[0] == '#') {
-			printf("ACK RRG\n");
-			printf("%s\n", replyData);
-			int status = getHexArrayFromReply( replyData, hexResult, 2);			//pull out last two words
-			long decResult;
-			//hexResult[5] = 49;
-			//hexResult[0] = 49;
-			//printf("hexResult[0]=%d\n", hexResult[0]);
-			//printf("hexResult[1]=%d\n", hexResult[1]);
-			//printf("hexResult=%s\n", hexResult);
-			
-			status = convertHexArrayToDec(hexResult, &decResult);
-			//printf("in rrg got decresult=%ld\n", decResult);
-			
-			if ( decResult < 2*ticksPerMM*SLIDE_LENGTH*10 ){		
-				
-				*pos = (double) decResult / (double) ticksPerMM;
-				
-			}else{
-				
-				//this means it's a 2's complement value, and must be negated to display a negative number
-				//what I'm after is ffff_ffff - result[1]_result[0]
-				//but I only have result
-				//( pow(2,32) - pow(2, 16) ) + decResult[1];		
-				*pos = double ( (long) pow(2,32) - (double) decResult) / (double) ticksPerMM;
-				
-			}
-			
-			//*pos = ( (double) decResult[1] ) / (double) ticksPerMM;
-			//printf("returned decResult=%d\n", decResult[1]);
-			
-			//double combinedDecResult = decResult[0]*32768 + decResult[1];
-			//printf("decResult[0]=%d, decResult[1]=%d, combinedResult=%d\n", decResult[0], decResult[1],combinedDecResult);
-			//strcpy(strToReturn, replyData);
-			return 0;
-	}else{
-		printf("Err: bad RRG response\n");
-		printf("%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		//strcpy(strToReturn, replyData);
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	*pos = (double) posCount / (double) ticksPerMM;
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+int serialClass::printPSW(int ID){
+	sprintf(output,"@%d %d\r",ID,POR);
+	writeMotSerPort(output);
+		
+	//~~~~~~~~ reply ~~~~~~~~~
+	char replyData[MAX_REPLY_LEN];
+	getMotReply( replyData);	
+	int psw[1];
+	readData(ID,replyData,1,psw);
+	for( int i = 15; i >= 0; i-- ){
+		if (psw[0] & (1 << i)) {
+			printPSWmessage( i );
+		}
+	}
+}
+
+int serialClass::printIO(int ID){
+	sprintf(output,"@%d %d\r",ID,RIO);
+	writeMotSerPort(output);
+		
+	//~~~~~~~~ reply ~~~~~~~~~
+	char replyData[MAX_REPLY_LEN];
+	getMotReply( replyData);	
+	int iow[1];
+	readData(ID,replyData,1,iow);
+	for( int i = 15; i >= 0; i-- ){
+		if (iow[0] & (1 << i)) {
+			printIOmessage( i );
+		}
+	}
+}
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::readIO(int ID, char* strToReturn){
-	//RIO
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 21;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-	//printf("in readIO\n");
-
-	if (!writeport(fd, output)) {
-		printf("Err: RIO write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		//printf("RIO written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
+	sprintf(output,"@%d %d\r",ID,RIO);
+	writeMotSerPort(output);
 
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
+	getMotReply( replyData);	
 	if ( replyData[0] == '#') {
 			//printf("ACK RIO\n");
 			strcpy(strToReturn, replyData);
@@ -469,220 +242,30 @@ int serialClass::readIO(int ID, char* strToReturn){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
 int serialClass::initDualLoop(int ID){
-	//DLC
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 243;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: DLC write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("DLC written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK DLC\n");
-			return 0;
-	}else{
-		printf("Err: bad DLC response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	sprintf(output,"@%d %d\r",ID,DLC);
+	return writeAndCheckACK(ID,output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::initSingleLoop(int ID){
-	//SLC
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 244;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: SLC write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("SLC written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK SLC\n");
-			return 0;
-	}else{
-		printf("Err: bad SLC response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	sprintf(output,"@%d %d\r",ID,SLC);
+	return writeAndCheckACK(ID,output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::setupEncoder(int ID){
-	//SEE
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 192;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d 0 0 2\r",ID,cmdID); //or should it be 0 10000 0? see old code below
-
-/*
-	int dig[ numDigs ];
-	int num = cmdID;
-	for(int i = numDigs - 1; i >= 0 ; i--)
-	{
-		dig[ i ] = NUMSTART + num % 10;
-		num /= 10;
-	}
-	
-	char output[40];
-	output[0] = 64;		//@
-	output[1] = NUMSTART + ID;	//device ID
-	output[2] = 32;		// space	  
-	int startindex = 3;
-	for (int i = startindex; i < startindex + numDigs; i++){
-		output[i] = dig[ i-startindex ];
-		//cout << i-3 << ","<<dig[i-3] << endl;
-	}
-	
-	output[6] = 32;		//SPC
-		
-	output[7] = 48; 		//index source: 0
-	output[8] = 32;		//SPC
-	
-	output[9] = 49;			//index state...0-20,000
-	output[10] = 48;
-	output[11] = 48;
-	output[12] = 48;
-	output[13] = 48;
-	output[14] = 32;		
-
-	output[15] = 48;			//encoder style
-	output[16] = 13;
-	
-	output[17] = 0;
-	output[18] = 0;
-	output[19] = 0;
-																			
-	std::stringstream stream;
-	stream <<"@"<<ID<<" 192 0 0 2\n\0";
-
-	strcpy(output, stream.str().c_str());
-*/
-	if (!writeport(fd, output)) {
-		printf("Err: SEE write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("SEE written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-		
-	}
-		
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK SEE\n");
-			return 0;
-	}else{
-		printf("Err: bad SEE response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	sprintf(output,"@%d %d %d %d %d\r",ID,SEE,0,0,2); //use external encoder on I/O #4-6, step+dir style
+	return writeAndCheckACK(ID,output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::halt(int ID){
-	//HAL
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 2;
-	//~~~~~~~~~~~~~~~~~~~
-
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: HALT write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		//printf("HALT written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK HAL\n");
-			return 0;
-	}else{
-		printf("Err: bad HAL response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	
+	sprintf(output,"@%d %d\r",ID,HLT);
+	return writeAndCheckACK(ID,output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -699,117 +282,407 @@ int serialClass::killActiveMotors(void){
 	return 0;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::killMotorConditions(int ID, int enableWord, int stateWord){
+	sprintf(output,"@%d %d %d %d\r",ID,KMC,enableWord,stateWord);
+	return writeAndCheckACK(ID,output);
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::setKillMotorConditions(){
+	//set KMC defaults for all axes
+	int enableWord = 0;
+	int stateWord = 0;
+
+	//kill motor on I/O #1 or #2 high
+	enableWord |= 1 << 4;
+	stateWord |= 1 << 4;
+	enableWord |= 1 << 5;
+	stateWord |= 1 << 5;
+
+	int status;
+	if ( X_MOTOR_ACTIVE ) status = killMotorConditions(X_AXIS_ID, enableWord, stateWord);
+		if ( status == -1 ) return -1;
+	if ( Y_MOTOR_ACTIVE ) status = killMotorConditions(Y_AXIS_ID, enableWord, stateWord);
+		if ( status == -1 ) return -1;
+	if ( Z_MOTOR_ACTIVE ) status = killMotorConditions(Z_AXIS_ID, 0, 0);
+		if ( status == -1 ) return -1;
+	return 0;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::writeInitProgram(int ID){
+	sprintf(output,"@%d %d\r",ID,CLP);
+	writeAndCheckACK(ID, output);
+
+	sprintf(output,"@%d %d\r",ID,SDL);
+	writeAndCheckACK(ID, output);
+
+	//set ID
+	sprintf(output,"@%d %d %d\r",ID,IDT,ID);
+	writeAndCheckACK(ID, output);
+
+	//set protocol to 8-bit, no parity, 2 stop bits
+	sprintf(output,"@%d %d %d\r",ID,PRO,1);
+	writeAndCheckACK(ID, output);
+
+	//use RS-232
+	sprintf(output,"@%d %d %d\r",ID,SIF,0);
+	writeAndCheckACK(ID, output);
+
+	//57600 baud
+	sprintf(output,"@%d %d %d\r",ID,BRT,576);
+	writeAndCheckACK(ID, output);
+
+	//set ACK delay
+	sprintf(output,"@%d %d %d\r",ID,ADL,10);
+	writeAndCheckACK(ID, output);
+
+	//low voltage trip at 10 V
+	sprintf(output,"@%d %d %d\r",ID,LVT,10);
+	writeAndCheckACK(ID, output);
+
+	//high voltage trip at 52 V
+	sprintf(output,"@%d %d %d\r",ID,OVT,52);
+	writeAndCheckACK(ID, output);
+
+	//read analog input cal
+	sprintf(output,"@%d %d %d\r",ID,CAI,65524);
+	writeAndCheckACK(ID, output);
+
+	//torque limits to 0
+	sprintf(output,"@%d %d %d %d %d %d\r",ID,TQL,0,0,0,0);
+	writeAndCheckACK(ID, output);
+
+	//go open-loop to set up motors
+	sprintf(output,"@%d %d\r",ID,GOL);
+	writeAndCheckACK(ID, output);
+
+	//single loop control
+	sprintf(output,"@%d %d\r",ID,SLC);
+	writeAndCheckACK(ID, output);
+
+	//set motor constants
+//MCT for XY: 7057 20370 31445 475 379 739 14261 1902
+//MCT for Z: 23341 19183 29296 144 68 210 4312 575
+//PAC for XY: 10 270 70
+//PAC for Z: 10 180 74
+//FLC for XY: 29264 27139 24236 (150, 250, 400 Hz)
+//FLC for Z: 24000 28000 30000 (413, 209, 117 Hz)
+//CTC for XY: 100 0 6 6 20 20 500
+//CTC for Z: 25 0 4 4 5 5 1000
+	switch (ID){
+		case X_AXIS_ID:
+			sprintf(output,"@%d %d %d %d %d %d %d %d %d %d\r",ID,MCT,7005,20218,30973,479,348,739,14368,1916);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d\r",ID,PAC,10,270,70);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d\r",ID,FLC,29264,27139,24236);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d %d %d %d %d\r",ID,CTC,0,6,6,20,20,100,500);
+			writeAndCheckACK(ID, output);
+			break;
+		case Y_AXIS_ID:
+			sprintf(output,"@%d %d %d %d %d %d %d %d %d %d\r",ID,MCT,7057,20370,31445,475,379,739,14261,1902);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d\r",ID,PAC,10,270,70);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d\r",ID,FLC,29264,27139,24236);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d %d %d %d %d\r",ID,CTC,0,6,6,20,20,100,500);
+			writeAndCheckACK(ID, output);
+			break;
+		case Z_AXIS_ID:
+			sprintf(output,"@%d %d %d %d %d %d %d %d %d %d\r",ID,MCT,22747,18695,27789,148,35,210,4425,590);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d\r",ID,PAC,10,180,74);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d\r",ID,FLC,24000,28000,30000);
+			writeAndCheckACK(ID, output);
+
+			sprintf(output,"@%d %d %d %d %d %d %d %d %d\r",ID,CTC,0,4,4,5,5,25,1000);
+			writeAndCheckACK(ID, output);
+			break;
+		default:
+			printf("Err: invalid ID");
+			return -1;
+	}
+
+	//no gravity offset
+	sprintf(output,"@%d %d %d\r",ID,GOC,0);
+	writeAndCheckACK(ID, output);
+
+	//clockwise orientation
+	sprintf(output,"@%d %d %d\r",ID,DIR,0);
+	writeAndCheckACK(ID, output);
+
+	//open loop phase
+	sprintf(output,"@%d %d %d\r",ID,OLP,0);
+	writeAndCheckACK(ID, output);
+
+	//ramp up torque
+	sprintf(output,"@%d %d %d %d\r",ID,TRU,20000,25);
+	writeAndCheckACK(ID, output);
+
+	//wiggle the motor
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRT,20,timeToTicks(0.03),timeToTicks(0.1),0,0);
+	writeAndCheckACK(ID, output);
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRT,-40,timeToTicks(0.03),timeToTicks(0.1),0,0);
+	writeAndCheckACK(ID, output);
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRT,20,timeToTicks(0.03),timeToTicks(0.1),0,0);
+	writeAndCheckACK(ID, output);
+
+	//wait
+	sprintf(output,"@%d %d %d\r",ID,DLT,timeToTicks(0.2));
+	writeAndCheckACK(ID, output);
+
+	//go closed-loop
+	sprintf(output,"@%d %d\r",ID,GCL);
+	writeAndCheckACK(ID, output);
+
+	//set default torque limits
+	sprintf(output,"@%d %d %d %d %d %d\r",ID,TQL,15000,20000,6000,60000);
+	writeAndCheckACK(ID, output);
+
+	//set anti-hunt threshold
+	sprintf(output,"@%d %d %d %d\r",ID,AHC,20,8);
+	writeAndCheckACK(ID, output);
+
+	//set anti-hunt delay
+	sprintf(output,"@%d %d %d\r",ID,AHD,250);
+	writeAndCheckACK(ID, output);
+
+	//no S-curve
+	sprintf(output,"@%d %d %d\r",ID,SCF,0);
+	writeAndCheckACK(ID, output);
+
+	//default error limits
+	sprintf(output,"@%d %d %d %d %d\r",ID,ERL,20000,20000,timeToTicks(0.120));
+	writeAndCheckACK(ID, output);
+
+	//motor should stop on a kill condition
+	sprintf(output,"@%d %d\r",ID,KDD);
+	writeAndCheckACK(ID, output);
+
+//KMR
+//KMC temp, moving, holding, overvoltage
+//PLR
+	//filter digital inputs
+	sprintf(output,"@%d %d %d %d\r",ID,DIF,0,timeToTicks(0.010));
+	writeAndCheckACK(ID, output);
+
+	//make sure done bit is off
+	sprintf(output,"@%d %d\r",ID,DDB);
+	writeAndCheckACK(ID, output);
+//DDB
+//MDC ?
+
+/*
+	//disable motor
+	sprintf(output,"@%d %d\r",ID,DMD);
+	writeAndCheckACK(ID, output);
+*/
+
+/*
+	//stop move (set target to position)
+	sprintf(output,"@%d %d\r",ID,146);
+	writeAndCheckACK(ID, output);
+	printf("TTP written:%s\n", output);
+
+	//clear status
+	sprintf(output,"@%d %d\r",ID,163);
+	writeAndCheckACK(ID, output);
+	printf("CIS written:%s\n", output);
+
+	//enable motor
+	sprintf(output,"@%d %d\r",ID,227);
+	writeAndCheckACK(ID, output);
+	printf("EMD written:%s\n", output);
+
+	switch (ID){
+		case X_AXIS_ID:
+		case Y_AXIS_ID:
+			status = s.writeInitProgramXY(ID);
+			break;
+		case Z_AXIS_ID:
+			status = s.writeInitProgramZ(ID);
+			break;
+		default:
+			printf("Err: invalid ID");
+			return -1;
+	}
+*/
+
+	//store program to NV memory as initialization
+	sprintf(output,"@%d %d %d\r",ID,13,0);
+	writeAndCheckACK(ID, output);
+	printf("SPR written:%s\n", output);
+
+	return 0;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::writeHomeProgramXY(int ID){
+	sprintf(output,"@%d %d\r",ID,CLP);
+	writeAndCheckACK(ID, output);
+
+	sprintf(output,"@%d %d\r",ID,SDL);
+	writeAndCheckACK(ID, output);
+
+	//move 100 mm towards the middle
+	int enableWord = 0;
+	int stateWord = 0;
+	enableWord |= 1 << 12; //if I/O #1 (positive limit) is true, reverse direction
+	stateWord |= 1 << 12;
+	enableWord |= 1 << 6; //record position when I/O #3 (home) is true - not actually used
+	//stateWord |= 1 << 6;
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRT,distToCounts(ID,100.0),timeToTicks(0.1),timeToTicks(3.0),enableWord,stateWord);
+	writeAndCheckACK(ID, output);
+
+	//move -500 mm, stop when I/O #3 (home) is true
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRV,distToCounts(ID,-500.0),accToSAU(ID,100.0),velToSVU(ID,10.0),-3,0);
+	writeAndCheckACK(ID, output);
+
+	//move to point where I/O #3 triggered
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,RAV,4,accToSAU(ID,10.0),velToSVU(ID,1.0),0,0);
+	writeAndCheckACK(ID, output);
+
+	//this is home; zero target and position
+	sprintf(output,"@%d %d\r",ID,ZTP);
+	writeAndCheckACK(ID, output);
+
+/*
+	//rerun home program on a kill motor condition
+	sprintf(output,"@%d %d 512\r",ID,KMR);
+	writeAndCheckACK(ID, output);
+
+	//set kill conditions - kill motor on I/O #1 or #2 high
+	enableWord = 0;
+	stateWord = 0;
+	enableWord |= 1 << 4;
+	stateWord |= 1 << 4;
+	enableWord |= 1 << 5;
+	stateWord |= 1 << 5;
+	sprintf(output,"@%d %d %d %d\r",ID,KMC,enableWord,stateWord);
+	writeAndCheckACK(ID, output);
+*/
+
+	//store program to NV memory, address 512
+	sprintf(output,"@%d %d %d\r",ID,SPR,512);
+	writeAndCheckACK(ID, output);
+	printf("SPR written:%s\n", output);
+
+	return 0;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::writeHomeProgramZ(int ID){
+	sprintf(output,"@%d %d\r",ID,CLP);
+	writeAndCheckACK(ID, output);
+	printf("CLP written:%s\n", output);
+
+	sprintf(output,"@%d %d\r",ID,SDL);
+	writeAndCheckACK(ID, output);
+	printf("SDL written:%s\n", output);
+
+	//clear status
+	sprintf(output,"@%d %d\r",ID,CIS);
+	writeAndCheckACK(ID, output);
+
+	//turn off kill motor conditions
+	sprintf(output,"@%d %d %d %d\r",ID,KMC,0,0);
+	writeAndCheckACK(ID, output);
+
+	//set error limits low
+	sprintf(output,"@%d %d %d %d %d\r",ID,ERL,50,50,500);
+	writeAndCheckACK(ID, output);
+
+	//set low torque limits
+	sprintf(output,"@%d %d %d %d %d %d\r",ID,TQL,20000,10000,6000,10000);
+	writeAndCheckACK(ID, output);
+
+	//move slowly -100 mm, stop on moving error
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRV,distToCounts(ID,-100.0),accToSAU(ID,200.0),velToSVU(ID,2.0),-11,1);
+	writeAndCheckACK(ID, output);
+
+	//stop move (set target to position)
+	sprintf(output,"@%d %d\r",ID,TTP);
+	writeAndCheckACK(ID, output);
+
+	//clear status
+	sprintf(output,"@%d %d\r",ID,CIS);
+	writeAndCheckACK(ID, output);
+
+	//move down 10 mm
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRV,distToCounts(ID,1.0),accToSAU(ID,200.0),velToSVU(ID,10.0),0,0);
+	writeAndCheckACK(ID, output);
+
+	//this is home; zero target and position
+	sprintf(output,"@%d %d\r",ID,ZTP);
+	writeAndCheckACK(ID, output);
+
+	//set normal torque limits
+	sprintf(output,"@%d %d %d %d %d %d\r",ID,TQL,20000,20000,6000,30000);
+	writeAndCheckACK(ID, output);
+
+	//rerun home program on a kill motor condition
+	sprintf(output,"@%d %d 512\r",ID,KMR);
+	writeAndCheckACK(ID, output);
+
+	//set normal kill conditions - kill motor on moving or holding error
+	int enableWord = 0;
+	int stateWord = 0;
+	enableWord |= 1 << 8;
+	stateWord |= 1 << 8;
+	enableWord |= 1 << 9;
+	stateWord |= 1 << 9;
+	sprintf(output,"@%d %d %d %d\r",ID,KMC,enableWord,stateWord);
+	writeAndCheckACK(ID, output);
+
+	//store program to NV memory, address 512
+	sprintf(output,"@%d %d %d\r",ID,SPR,512);
+	writeAndCheckACK(ID, output);
+
+	return 0;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::runHomeProgram(int ID){
+	sprintf(output,"@%d %d %d\r",ID,LRP,512); //run program at NV address 0
+	return writeAndCheckACK(ID, output);
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::runInitProgram(int ID){
+	sprintf(output,"@%d %d 0\r",ID,LRP); //run program at NV address 0
+	return writeAndCheckACK(ID, output);
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::stop(int ID){
-	//STP
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 3;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d -1\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: STOP write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		//printf("STOP written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK STOP\n");
-			return 0;
-	}else{
-		printf("Err: bad STOP response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	
+	sprintf(output,"@%d %d -1\r",ID,STP);
+	return writeAndCheckACK(ID,output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::enableMotor(int ID){
-	//EMD
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 227;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: EMD write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("EMD written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK EMD\n");
-			return 0;
-	}else{
-		printf("Err: bad EMD response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	sprintf(output,"@%d %d\r",ID,EMD);
+	return writeAndCheckACK(ID,output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::resetMotor(int ID){
-	//RST
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 4;
-	//~~~~~~~~~~~~~~~~~~~
-
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
+	sprintf(output,"@%d %d\r",ID,RST);
 	
-	if (!writeport(fd, output)) {
-		printf("Err: RST write failed\n");
-		//close(fd);
-		return -1;
-	}
-	else{
-		printf("RST written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
+	writeMotSerPort(output);
 	
 	//no ACK returned
 	usleep(3000000);
@@ -817,7 +690,6 @@ int serialClass::resetMotor(int ID){
 	tcflush(fd, TCIFLUSH);
 
 	return 0;		
-	
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -842,27 +714,65 @@ void serialClass::flushL(void){
 }	
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::getReply(int whichPort, char *result, int &numChars){
-	usleep(10000);		//N ms
+int serialClass::getMotReply(char *result){
+	//usleep(10000);		//N ms
 	char sResult[MAX_REPLY_LEN];
-	fcntl(whichPort, F_SETFL, FNDELAY); // don't block serial read
+	//fcntl(fd, F_SETFL, FNDELAY); // don't block serial read
 
-	if (!readport(whichPort,sResult)) {
+	if (!readport_blocking(fd,sResult,"\r")) {
 		printf("ERR: getReply() read failed\n");
-		close(whichPort);
+		close(fd);
 		return -1;
 	}		
 	
-	//now find how many characters are in the reply string.  Assume null termination for unfilled characters.
-	string resultString(sResult);
-	numChars = resultString.length() + 1;
+	int numChars = strlen(sResult);
 	
 	/*now check through for corrupted data.  There should never be anything greater than 102 (=f), since all
 	symbols are below the numbers*/
 	
 	for(int i = 0; i < numChars; i++){
 		if ( sResult[ i ] > 102 ){
-			printf("ERR: getReply() illegal character\n");
+			printf("ERR: getReply() illegal character %d at position %d\n",sResult[i],i);
+			printf("readport=%s\n", sResult);
+			flush();			//flush the port of illegal characters
+			return -1;
+		}
+	}
+	
+	if (strchr(sResult,'\r') - sResult != numChars-1)
+		printf("getMotReply: did not find \\r as last character of reply");
+
+	//printf("numChars received=%d\n", numChars);	strcpy(result, sResult);
+	
+	strcpy(result, sResult);
+	//result[ numChars - 1] = 13;		//add the CR
+	//result[ numChars ] = 0;		//add null
+	
+	//result = "hello";
+	//printf("readport=%s\n", result);
+	return 0;
+}
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::getLasReply(char *result){
+	//usleep(100000);		//N ms
+	char sResult[MAX_REPLY_LEN];
+	//fcntl(Ld, F_SETFL, 0); // block on serial read
+
+	if (!readport_blocking(Ld,sResult,"Ready for command > ")) {
+		printf("ERR: getReply() read failed\n");
+		close(Ld);
+		return -1;
+	}		
+	
+	int numChars = strlen(sResult);
+	
+	/*now check through for corrupted data.  There should never be anything greater than 102 (=f), since all
+	symbols are below the numbers*/
+	
+	for(int i = 0; i < numChars; i++){
+		if ( sResult[ i ] > 126 ){
+			printf("ERR: getReply() illegal character %d at position %d\n",sResult[i],i);
 			printf("readport=%s\n", sResult);
 			flush();			//flush the port of illegal characters
 			return -1;
@@ -872,8 +782,8 @@ int serialClass::getReply(int whichPort, char *result, int &numChars){
 	//printf("numChars received=%d\n", numChars);	strcpy(result, sResult);
 	
 	strcpy(result, sResult);
-	result[ numChars - 1] = 13;		//add the CR
-	result[ numChars ] = 0;		//add null
+	//result[ numChars - 1] = 13;		//add the CR
+	//result[ numChars ] = 0;		//add null
 	
 	//result = "hello";
 	//printf("readport=%s\n", result);
@@ -885,30 +795,171 @@ serialClass::serialClass(){ }
 serialClass::~serialClass ( ){ }
 
 
+const char * serialClass::cmdName(int cmdID) {
+	switch (cmdID) {
+		case 0: 	return "POL";
+		case 1: 	return "CPL";
+		case 163: 	return "CIS";
+		case 27: 	return "POR";
+		case 21: 	return "RIO";
+		case 177: 	return "MRT";
+		case 176: 	return "MAT";
+		case 135: 	return "MRV";
+		case 160: 	return "RAV";
+		case 243: 	return "DLC";
+		case 244: 	return "SLC";
+		case 192: 	return "SEE";
+		case 2: 	return "HLT";
+		case 3: 	return "STP";
+		case 4: 	return "RST";
+		case 145: 	return "ZTP";
+		case 167: 	return "KMC";
+		case 8: 	return "CLP";
+		case 9: 	return "SDL";
+		case 13: 	return "SPR";
+		case 156: 	return "LRP";
+		case 155: 	return "IDT";
+		case 173: 	return "ADL";
+		case 185: 	return "PRO";
+		case 186: 	return "SIF";
+		case 174: 	return "BRT";
+		case 212: 	return "LVT";
+		case 213: 	return "OVT";
+		case 149: 	return "TQL";
+		case 143: 	return "GOL";
+		case 211: 	return "CAI";
+		case 172: 	return "PAC";
+		case 168: 	return "MCT";
+		case 169: 	return "FLC";
+		case 148: 	return "CTC";
+		case 237: 	return "GOC";
+		case 184: 	return "DIR";
+		case 152: 	return "OLP";
+		case 222: 	return "TRU";
+		case 140: 	return "DLT";
+		case 142: 	return "GCL";
+		case 150: 	return "AHC";
+		case 230: 	return "AHD";
+		case 195: 	return "SCF";
+		case 151: 	return "ERL";
+		case 183: 	return "KDD";
+		case 252: 	return "DIF";
+		case 171: 	return "DDB";
+		case 227: 	return "EMD";
+		case 228: 	return "DMD";
+		default: 	return "unknown command";
+	}
+}
+
+int serialClass::writeMotSerPort(char *output){
+	int ID,cmdID;
+	sscanf(output,"@%d %d",&ID,&cmdID);
+	int status = writeport(fd,output);
+	if (status) {
+		printf("wrote %s to ID %d: %s\n",cmdName(cmdID),ID,output);
+	}
+	else {
+		printf("failed writing %s to ID %d: %s\n",cmdName(cmdID),ID,output);
+	}
+	//sleep(0.1);
+	return status;
+}
+
+int serialClass::writeLas(char *output){
+	int status = writeport(Ld,output);
+	if (status) {
+		printf("wrote to laser: %s\n",output);
+	}
+	else {
+		printf("failed writing to laser: %s\n",output);
+	}
+	//sleep(0.1);
+	return status;
+}
+
+int serialClass::writeAndCheckACK( int ID, char* output ){
+	char replyData[MAX_REPLY_LEN];
+	writeMotSerPort(output);
+	getMotReply( replyData);	
+	return checkForACK( ID, replyData );
+}
 
 int serialClass::checkForACK( int ID, char* inputArray ){
 	if (  inputArray[ 0 ] != '*' ){
-		//printf("ERR in ACK seeing * as first character\n");
+		printf("ERR in ACK seeing * as first character. ReplyString=%s\n",inputArray);
 		return -1;
 	}
+	int readID;
+	sscanf(inputArray,"* %x\r",&readID);
 	
-	//NOTE: this only works for 1-digit device ID's:
-	if ( ID != inputArray[ 3 ] - NUMSTART ){
-		printf("ERR in seeing ID number in ACK\n");
+	if ( ID != readID ){
+		printf("ERR in seeing ID number in ACK. ReplyString=%s\n",inputArray);
 		return -1;
 	}
 		
-	//printf("ACK received. ReplyString=%s\n", inputArray);
+	printf("ACK received. ReplyString=%s\n", inputArray);
 	return 0;
 }
 
+int serialClass::checkLasACK( char* outputArray, char* inputArray ){
+	char * inputPtr = inputArray;
+
+	//for (int i=0;i<strlen(outputArray);i++) printf("%d\t%d\n",inputPtr[i],outputArray[i]);
+	if ( strncmp(inputPtr,outputArray,strlen(outputArray)) != 0 ){
+		printf("No echo\n");
+		//return -1;
+	} else {
+		inputPtr+=strlen(outputArray);
+	}
+
+		
+	char * ack="\r\n\r\nReady for command > ";
+	//for (int i=0;i<strlen(inputPtr);i++) printf("%d\t%d\n",inputPtr[i],ack[i]);
+	if ( strncmp(inputPtr,ack,strlen(ack)) != 0 ){
+		printf("Not an ACK: ReplyString=%s\n",inputArray);
+		return -1;
+	}
+	printf("ACK received to command: %s\n", outputArray);
+	return 0;
+}
+
+int serialClass::readData( int ID, char* inputArray, int nData, int* dataArray ){
+	char inputBuf[254];
+	strcpy(inputBuf,inputArray);
+	char * tok = strtok(inputBuf," ");
+	if (strcmp(tok,"#") != 0){
+		printf("ERR in DATA seeing # as first character. ReplyString=%s\n",inputArray);
+		return -1;
+	}
+	tok = strtok(NULL," ");
+	int readID;
+	sscanf(tok,"%x",&readID);
+	
+	if ( ID != readID ){
+		printf("ERR in seeing ID number in DATA. ReplyString=%s\n",inputArray);
+		return -1;
+	}
+
+	tok = strtok(NULL," ");
+	int readCmdID;
+	sscanf(tok,"%x",&readCmdID);
+	printf("response packet for command %s\n",cmdName(readCmdID));
+		
+	tok = strtok(NULL," ");
+	for (int i=0;i<nData;i++) {
+		sscanf(tok,"%x",&dataArray[i]);
+		tok = strtok(NULL," ");
+	}
+	//printf("ACK received. ReplyString=%s\n", inputArray);
+	return 0;
+}
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::initMotSerPort() {
 	#define BAUD 57600;                      // derived baud rate from command line
 
-		fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY | O_NDELAY);
+	fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
 	if (fd == -1) {
 		perror("open_port: Unable to open /dev/ttyS0 - ");
 		return 1;
@@ -929,9 +980,14 @@ int serialClass::initMotSerPort() {
 	options.c_cflag |= (CLOCAL | CREAD);
 
 	options.c_cflag &= ~PARENB;
-	options.c_cflag &= ~CSTOPB;
+	options.c_cflag |= CSTOPB; //two stop bits
 	options.c_cflag &= ~CSIZE;
 	options.c_cflag |= CS8;
+	
+	options.c_cc[VMIN]=0;
+        options.c_cc[VTIME]=10;
+
+	options.c_lflag &= ~(ICANON | ECHO | ECHOE);
 
 	// Set the new options for the port...
 	tcsetattr(fd, TCSANOW, &options);
@@ -947,152 +1003,22 @@ int serialClass::initMotSerPort() {
 	
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::changeAntiHunt(int ID) {
-	//AHC
-	
-
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 150;
-	//~~~~~~~~~~~~~~~~~~~
-	char output[40];
-	
-	std::stringstream stream;
-	stream <<"@"<<ID<<" 150 4 6\r\0";
-
-	strcpy(output, stream.str().c_str());
-	if (!writeport(fd, output)) {
-		printf("Err: AHC write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("AHC written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			printf("ACK AHC\n");
-			//printf("here1\n");
-			//delete replyData;
-			return 0;
-	}else{
-		printf("Err: bad AHC response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		//delete replyData;
-		return -1;
-	}
-	
-	return -1;		//should never be here*/
+	sprintf(output,"@%d %d %d %d\r",ID,AHC,4,6);
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::goClosedLoop(int ID) {
-	//GCL
-	
-
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 142;
-	//~~~~~~~~~~~~~~~~~~~
-	char output[40];
-	
-	std::stringstream stream;
-	stream <<"@"<<ID<<" 142\r\0";
-
-	strcpy(output, stream.str().c_str());
-	if (!writeport(fd, output)) {
-		printf("Err: GCL write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("GCL written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			printf("ACK GCL\n");
-			//printf("here1\n");
-			//delete replyData;
-			return 0;
-	}else{
-		printf("Err: bad GCL response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		//delete replyData;
-		return -1;
-	}
-	
-	return -1;		//should never be here*/
+	sprintf(output,"@%d %d\r",ID,GCL);
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::changeACKdelay(int ID, double delay) {
-	//ADL
-	
-
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 173;
-	//~~~~~~~~~~~~~~~~~~~
-
-	char output[40];
-	sprintf(output,"@%d %d 10\r",ID,cmdID); //the delay is number is 120us * this number.
-	
-	if (!writeport(fd, output)) {
-		printf("Err: ADL write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("ADL written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	sleep(0.1);
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int reply;
-	
-	reply = getReply(fd, replyData, numChars);	
-	reply = checkForACK( ID, replyData );
-	if ( reply == 0) {
-			printf("ACK ADL\n");
-			//printf("here1\n");
-			//delete replyData;
-			return 0;
-	}else{
-		printf("Err: bad ADL response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		//delete replyData;
-		return -1;
-	}
-	
-	return -1;		//should never be here*/
+	sprintf(output,"@%d %d %d\r",ID,ADL,timeToTicks(delay/1000.0));
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1106,18 +1032,6 @@ int serialClass::closeLaserSerialPort(void){
    close(Ld);
 	return 0;
 }
-
-
-int serialClass::returnNumDigits(int number){
-	if ( number < 10 ){ return 1; }
-	else if ( number < 100 ){ return 2; }
-	else if ( number < 1000 ) { return 3; }
-	else if ( number < 10000 ) { return 4; }
-	else if ( number < 100000 ) { return 5; }
-	else if ( number < 1000000 ) { return 6; }
-	else{ cout << "Err: returnNumDigits" << endl; return 0; }
-}
-
 
 int serialClass::displayNACKerrors(char* inputArray) {
 	//takes in a reply from the controller, and displays the NACK errors	
@@ -1168,83 +1082,63 @@ int serialClass::getIObitFromReply(char* inputArray, int whichBit){
 }
 
 int serialClass::displayIOdescriptions(char* inputArray){
-	//takes in a reply and using getHexArrayFromReply() takes out the last 4 hex digits.
-	//these 4 hex characters ( ) represent the polling status word PSW, are are then converted to bits.
+	//takes in a reply from RIO and takes out the last 4 hex digits.
+	//these 4 hex characters ( ) represent the I/O status word IOS, are are then converted to bits.
 	//then it displays all error messages.
-
-	char hexResult[4];	
-	int status = getHexArrayFromReply( inputArray, hexResult, 1);
-	if ( status != 0 ){ 
-		printf("Err: serialClass::displayPSWdescriptions, getHexArrayFromReply\n" ); 
-		return -1;
-	}			
-	//printf( "hexResult = %c%c%c%c\n", hexResult[0], hexResult[1], hexResult[2], hexResult[3] );
+	int cmdID;
+	int responseID;
+	int ios;
+	sscanf(inputArray,"# %x %x %x\r",&responseID,&cmdID,&ios);
+	printf("cmdID 0x%4x, IOS 0x%4x\n",cmdID,ios);
 			
-	long decResult;
-	status = convertHexArrayToDec(hexResult, &decResult);
-	//printf("dec=%d\n", decResult);
-	if ( status != 0){ 
-		printf("Err: serialClass::displayPSWdescriptions, convertHexArrayToDec\n" ); 
-		return -1;
-	}
-
-	int binaryArray[16];
-	decNumberToBinaryArray( (int) decResult, binaryArray );
-
 	for( int i = 15; i >= 0; i-- ){
-		printf( "%d", binaryArray[i] );
-	}
-	printf("\n"); 
-
-	for( int i = 15; i >= 0; i-- ){
-		//printf( "%d", binaryArray[i] );
-		if ( binaryArray[ i ] == 1 ){		//==1
-			printPSWmessage( i );
-			
+		if (ios & (1 << i)) {
+			printIOmessage( i );
 		}
-		
 	}
 	return 0;
+} //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+int serialClass::readRegister(int ID, int regID, int *data){
+	sprintf(output,"@%d %d %d\r",ID,RRG,regID);
+	writeMotSerPort(output);
+
+	char replyData[MAX_REPLY_LEN];
+	getMotReply( replyData);	
+	int nData;
+	
+//	readData(ID,replyData,
+	if ( replyData[0] == '#') {
+		printf("DATA RRG\n");
+		int cmdID;
+		int responseID;
+		int data1, data2;
+		sscanf(replyData,"# %x %x %x %x\r",&responseID,&cmdID,&data1,&data2);
+		*data = ((data1 << 16) | data2);
+		return 0;
+	}else{
+		printf("Err: bad RRG response\n");
+		printf("got:%s\n", replyData);
+		return -1;
+	}
 } //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::displayPSWdescriptions(char* inputArray) {
-	//takes in a reply and using getHexArrayFromReply() takes out the last 4 hex digits.
+	//takes in a reply from POL/POR and takes out the last 4 hex digits.
 	//these 4 hex characters ( ) represent the polling status word PSW, are are then converted to bits.
 	//then it displays all error messages.
-
-	char hexResult[4];	
-	int status = getHexArrayFromReply( inputArray, hexResult, 1);
-	if ( status != 0 ){ 
-		printf("Err: serialClass::displayPSWdescriptions, getHexArrayFromReply\n" ); 
-		return -1;
-	}			
-	//printf( "hexResult = %c%c%c%c\n", hexResult[0], hexResult[1], hexResult[2], hexResult[3] );
+	int cmdID;
+	int responseID;
+	int psw;
+	sscanf(inputArray,"# %x %x %x\r",&responseID,&cmdID,&psw);
+	printf("cmdID 0x%4x, PSW 0x%4x\n",cmdID,psw);
 			
-	long decResult;
-	status = convertHexArrayToDec(hexResult, &decResult);
-	//printf("dec=%d\n", decResult);
-	if ( status != 0){ 
-		printf("Err: serialClass::displayPSWdescriptions, convertHexArrayToDec\n" ); 
-		return -1;
-	}
-
-	int binaryArray[16];
-	decNumberToBinaryArray( (int) decResult, binaryArray );
-
 	for( int i = 15; i >= 0; i-- ){
-		printf( "%d", binaryArray[i] );
-	}
-	printf("\n"); 
-
-	for( int i = 15; i >= 0; i-- ){
-		//printf( "%d", binaryArray[i] );
-		if ( binaryArray[ i ] == 1 ){		//==1
+		if (psw & (1 << i)) {
 			printPSWmessage( i );
-			
 		}
-		
 	}
 	return 0;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1252,73 +1146,63 @@ int serialClass::displayPSWdescriptions(char* inputArray) {
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::clearAllPSWbits(int ID){
-	//clear all bits of the polling status word
-	int status;
-	for(int i = 0; i < 16 ; i++){
-		status = clearPoll(ID, i);
-		if ( status == 0 ){
-		}else{
-			printf("Err: clearing PSW bits\n");
-			return -1;
-		}
-	}
-	printf("Cleared all PSW bits\n");
-	return 0;
+	sprintf(output,"@%d %d %d\r",ID,CPL,65535);
+	return writeAndCheckACK(ID, output);
 }
 
 void serialClass::printIOmessage(int index){
 	switch (index){
 			case 0:
-				printf("  IO.0: Aborted Packet.  Data Error or Previous Packet Collision\n");
+				printf("  IO.0: Index Found\n");
 				break;
 			case 1:						
-				printf("  IO.1: Invalid Checksum (9-bit Protocol Only)\n");
+				printf("  IO.1: Internal Index Found\n");
 				break;
 			case 2:
-				printf("  IO.2: Soft Limit Reached (SSL)\n");
+				printf("  IO.2: External Index Found\n");
 				break;		
 			case 3:				
-				printf("  IO.3: Device Shutdown due to Kill (KMC / KMX) \n");
+				printf("  IO.3: Trajectory Generator Active\n");
 				break;
 			case 4:				
-				printf("  IO.4: Packet Framing Error; Missing Bits\n");
+				printf("  IO.4: I/O #1\n");
 				break;
 			case 5:					
-				printf("  IO.5: Message Too Long (>31 bytes)\n");
+				printf("  IO.5: I/O #2\n");
 				break;
 			case 6:				
-				printf("  IO.6: Condition Met While Executing CKS Command\n");
+				printf("  IO.6: I/O #3\n");
 				break;
 			case 7:				
-				printf("  IO.7: Serial Rx Overflow\n");
+				printf("  IO.7: Temperature Ok\n");
 				break;
 			case 8:				
-				printf("  IO.8: Moving Error (ERL) Exceeded in Moving State\n");
+				printf("  IO.8: Moving Error\n");
 				break;
 			case 9:				
-				printf("  IO.9: Holding Limit Error (ERL) Exceeded in Holding State\n");
+				printf("  IO.9: Holding Error\n");
 				break;			
 			case 10:				
-				printf("  IO.10: Low/Over Voltage\n");
+				printf("  IO.10: Delay Counter\n");
 				break;			
 			case 11:				
-				printf("  IO.11: Motion Ended due to Input\n");
+				printf("  IO.11: Reserved\n");
 				break;			
 			case 12:				
-				printf("  IO.12: Command Error: parameter values or firmware\n");
+				printf("  IO.12: I/O #4\n");
 				break;			
 			case 13:				
-				printf("  IO.13: Buffer Commands Completed\n");
+				printf("  IO.13: I/O #5\n");
 				break;			
 			case 14:
-				printf("  IO.14: Checksum Error\n");
+				printf("  IO.14: I/O #6\n");
 				break;		
 			case 15:							
-				printf("  IO.15: Immediate Command Done\n");
+				printf("  IO.15: I/O #7\n");
 				break;
 			
 			default:
-				printf("Err:serialClass::printPSWmessage()\n");
+				printf("Err:serialClass::printIOmessage()\n");
 		}
 										
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1470,45 +1354,8 @@ int serialClass::getHomeSwitch(int ID){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::zeroTarget(int ID){
-	//ZTP
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 145;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-	
-	if (!writeport(fd, output)) {
-		printf("Err: ZTP write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("ZTP written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[MAX_REPLY_LEN];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK ZTP\n");
-			return 0;
-	}else{
-		printf("Err: bad ZTP response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	
+	sprintf(output,"@%d %d\r",ID,ZTP);
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1562,7 +1409,6 @@ int serialClass::setIObit(int ID, int whichBit, int state){
 	const int cmdID = 188;
 	//~~~~~~~~~~~~~~~~~~~
 	
-	char output[40];
 	sprintf(output,"@%d %d %d %d\r",ID,cmdID,whichBit,state);
 			
 	if (!writeport(fd, output)) {
@@ -1577,24 +1423,8 @@ int serialClass::setIObit(int ID, int whichBit, int state){
 	
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
-	int status;
-	
-	status = getReply(fd, replyData, numChars);	
-	status = checkForACK( ID, replyData );
-	if ( status == 0) {
-			printf("ACK CIO\n");
-			return 0;
-	}else{
-		printf("Err: bad CIO response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	getMotReply( replyData);	
+	return checkForACK( ID, replyData );
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1832,7 +1662,6 @@ int serialClass::gotoHomePoint(int ID ){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::resetAsHomePoint(int ID ){
-	double pos;
 	int status = zeroTarget( ID );
 	if ( status == -1 ){
 			printf("ERR: resetAsHomePoint() sending zeroTarget command\n");
@@ -1846,49 +1675,15 @@ int serialClass::resetAsHomePoint(int ID ){
 		
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::clearInternalStatus(int ID) {
-        //CIS
+	sprintf(output,"@%d %d\r",ID,CIS);
+	writeMotSerPort(output);
 
-
-        //~~~~~~~~~~~~~~~~~~~
-        const int cmdID = 163;
-        //~~~~~~~~~~~~~~~~~~~
-
-        char output[40];
-	sprintf(output,"@%d %d\r",ID,cmdID);
-
-        if (!writeport(fd, output)) {
-                printf("Err: CIS write failed\n");
-                //close(fd);
-                return 1;
-        }
-        else{
-                printf("CIS written:%s\n", output);
-               //tcflush(fd, TCIFLUSH);        //flush port
-        }
         sleep(0.5);
+
         //~~~~~~~~ reply ~~~~~~~~~
         char replyData[MAX_REPLY_LEN];
-        int numChars;
-        int reply;
-
-        reply = getReply(fd, replyData, numChars);
-        reply = checkForACK( ID, replyData );
-        if ( reply == 0) {
-                        printf("ACK CIS\n");
-                        //printf("got:%s\n", replyData);
-                        //printf("here1\n");
-                        //delete replyData;
-                        return 0;
-        }else{
-                printf("Err: bad CIS response\n");
-                printf("got:%s\n", replyData);
-                //printf( "\n" );
-                //status = displayPSWdescriptions( replyData );
-               //delete replyData;
-                return -1;
-        }
-
-        return -1;              //should never be here*/
+	getMotReply( replyData);	
+	return checkForACK( ID, replyData );
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -2007,8 +1802,6 @@ int serialClass::gotoAndSetHomePoint(int ID){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::setLaserWidth_ns(double width){
 	//width in nanoseconds
-
-	
 	printf("width received:%f\n", width);
 	if ( (width < 2.0) | (width > 50.0) ){
 		printf("Err:Pulse Width Out of Range\n");
@@ -2018,52 +1811,17 @@ int serialClass::setLaserWidth_ns(double width){
 	//sprintf(intArr, "%d", width);
 	int number = (int) width;
 	
-        char output[40];
 	sprintf(output,"puls:widt %dns\r",number);
 	
-	printf("output=%s<cr>\n", output);
-	
-	//delete [] buff;
+	writeLas(output);
+	printf("width written:%s\n", output);
 
-	
-	
-		
-	if (!writeport(Ld, output)) {
-		printf("Err: laser width write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("width written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-
-	
-	return 0;
-	
-	//do not expect a reply from the laser, since it doesn't send messages with a CR.
-	
-	/*
-	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
+	status = getLasReply(replyData);
+	status = checkLasACK(output,replyData);
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from laser width=%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad laser width reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	*/
-	
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -2080,195 +1838,84 @@ int serialClass::setLaserAmp_mV(double amp){
 			
 	int number = (int) amp;
 	
-        char output[40];
 	sprintf(output,"voltage %dmV\r",number);
+	writeLas(output);
+	printf("Amp written:%s\n", output);
 	
-	printf("output=%s<cr>\n", output);
-	
-	//delete [] buff;
-
-	
-	
-		
-	if (!writeport(Ld, output)) {
-		printf("Err: laser Amp write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("Amp written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-
-	return 0;
-
-	
-	//do not expect a reply from the laser, since it doesn't send messages with a CR.
-		
-	/*
-	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
+	status = getLasReply(replyData);
+	status = checkLasACK(output,replyData);
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from laser Amp=%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad laser Amp reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	*/
-	
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::sendLaserTrigger(void){
 	
-	char output[30]={"trig:sour IMM\r"};
-		
-	if (!writeport(Ld, output)) {
-		printf("Err: laser trigger write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("laser trigger written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
+	strcpy(output,"trig:sour IMM\r");
+	writeLas(output);
+	printf("laser trigger written:%s\n", output);
 
-	
-	
-	return 0;
-	/*
-	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
+	status = getLasReply(replyData);
+	status = checkLasACK(output,replyData);
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from laser trigger =%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad laser trigger reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	*/
-	
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::turnOffLaserEcho( void ){
+int serialClass::turnOnLaserEcho( void ){
 		
-	char output[30]={"syst:comm:serial:echo off\r"};
+	strcpy(output,"syst:comm:serial:echo on\r");
 	
-	if (!writeport(Ld, output)) {
-		printf("Err: laser echo write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("laser echo written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}
+	writeLas(output);
+	printf("laser echo written:%s\n", output);
 	
-	sleep (1.0);
-	return 0;
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from echo=%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad echo reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here		
+	status = getLasReply(replyData);		//laser port Ld.
+	status = checkLasACK(output,replyData);
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::disableLaserFlowControl(void){
 	
-	char output[50]={"syst:comm:serial:control:rts on\r"};
+	strcpy(output,"syst:comm:serial:control:rts on\r");
 	
-	if (!writeport(Ld, output)) {
-		printf("Err: laser flowControl write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("flowControl written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-
-	return 0;
+	writeLas(output);
+	printf("laser flowControl written:%s\n", output);
+	
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from flowControl=%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad flowControl reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	
+	status = getLasReply(replyData);		//laser port Ld.
+	status = checkLasACK(output,replyData);
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::requestLaserID(void){
 	
-	char output[30]={"*IDN?\r"};
+	strcpy(output,"*IDN?\r");
 	
-	if (!writeport(Ld, output)) {
-		printf("Err: laser *IDN write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("*IDN written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
+	writeLas(output);
+	printf("*IDN? written:%s\n", output);
 
-	return 0;
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
+	status = getLasReply(replyData);		//laser port Ld.
 	if ( status >= 0 ){
 		printf("replyData from *IDN=%s\n", replyData);
 		return 0;
@@ -2291,7 +1938,8 @@ int serialClass::initLaserSerPort() {
 	
 	//close(Ld);
 			
-	Ld = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
+	Ld = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY);
+	//Ld = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
 	//Ld = open("/dev/ttyS0", O_RDWR | O_NOCTTY | O_NDELAY);
 	if (Ld == -1) {
 		perror("open_port: Unable to open /dev/ttyUSB0 - ");
@@ -2314,13 +1962,15 @@ int serialClass::initLaserSerPort() {
 	options.c_cflag |= (CLOCAL | CREAD );
 
 	options.c_cflag &= ~PARENB;
-	options.c_cflag &= ~-CSTOPB;		// !! ONE stop bit for pulser
+	options.c_cflag &= ~CSTOPB;		// !! ONE stop bit for pulser
 	options.c_cflag &= ~CSIZE;
 	options.c_cflag |= CS8;
 	
+	options.c_cc[VMIN]=0;
+        options.c_cc[VTIME]=10;
 	
    //options.c_lflag &= ~ECHO;
-  //options.c_lflag |= ~(ICANON | ECHO | ECHOE);
+	options.c_lflag &= ~(ICANON | ECHO | ECHOE);
  
 	//~~~~~~~~~~~~~~~~~
 	// options.c_cflag |= CRTSCTS;		// !! hardware flow control for the pulser
@@ -2344,27 +1994,17 @@ int serialClass::initLaserSerPort() {
 int serialClass::laserRemoteEnable( void ){
 	//width in nanoseconds
 	
-	char output[20]={"remote\r"};
+	strcpy(output,"remote\r");
 	
-	if (!writeport(Ld, output)) {
-		printf("Err: laser remote write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("remote written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
+	writeLas(output);
+	printf("remote written:%s\n", output);
 
-	
-	sleep (0.1);
-	return 0;
+	//sleep (0.1);
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
+	status = getLasReply(replyData);		//laser port Ld.
 	if ( status >= 0 ){
 		printf("replyData from remote=%s\n", replyData);
 		return 0;
@@ -2380,84 +2020,39 @@ int serialClass::laserRemoteEnable( void ){
 	
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserEnableOutput( void ){
-	
-	char output[20]={"output on\r"};
-		
-	if (!writeport(Ld, output)) {
-		printf("Err: laser enable output write failed\n");
-		//close(fd);
-		return 1;			//don't want the program to shut down: the laser's replies are never received.
-	}
-	else{
-		printf("local written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-
-	
-	sleep (0.1);
-	return 0;
-	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
+//	status = getLasReply(replyData);
+//	sleep (0.1);
+	strcpy(output,"output on\r");
+	writeLas(output);
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from laser enable output=%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad laser enable output reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
+	//sleep (0.1);
+
+	//~~~~~~~~ reply ~~~~~~~~~
 	
-	return -1;		//should never be here
+	status = getLasReply(replyData);
+	status = checkLasACK(output,replyData);
 	
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserDisableOutput( void ){
-	
-	char output[20]={"output off\r"};
-		
-	if (!writeport(Ld, output)) {
-		printf("Err: laser enable disable write failed\n");
-		//close(fd);
-		return 1;			//don't want the program to shut down: the laser's replies are never received.
-	}
-	else{
-		printf("local written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-
-	
-	sleep (0.1);
-	return 0;
-	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
+	strcpy(output,"output off\r");
+		
+	writeLas(output);
+	printf("output off written:%s\n", output);
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
-	if ( status >= 0 ){
-		printf("replyData from laser disable output=%s\n", replyData);
-		return 0;
-	}else{
-		printf("Err: bad laser enable disable reply\n");
-		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
-	}
-	
-	return -1;		//should never be here
-	
+	//sleep (0.1);
+	status = getLasReply(replyData);
+	status = checkLasACK(output,replyData);
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -2465,35 +2060,23 @@ int serialClass::laserDisableOutput( void ){
 int serialClass::laserLocalEnable( void ){
 	//width in nanoseconds
 	
-	char output[20]={"local\r"};
-		
-	if (!writeport(Ld, output)) {
-		printf("Err: laser local write failed\n");
-		//close(fd);
-		return 1;			//don't want the program to shut down: the laser's replies are never received.
-	}
-	else{
-		printf("local written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
+	strcpy(output,"local\r");
+	writeLas(output);
+	printf("local written:%s\n", output);
 
 	
-	sleep (0.1);
-	return 0;
+	//sleep (0.1);
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
-	int numChars;
 	int status;
 	
-	status = getReply(Ld, replyData, numChars);		//laser port Ld.
+	status = getLasReply(replyData);		//laser port Ld.
 	if ( status >= 0 ){
 		printf("replyData from local=%s\n", replyData);
 		return 0;
 	}else{
 		printf("Err: bad local reply\n");
 		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
 		return -1;
 	}
 	
