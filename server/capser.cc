@@ -8,7 +8,7 @@
 #include <errno.h>   /* Error number definitions */
 #include <termios.h> /* POSIX terminal control definitions */
 
-int writeport(int fd, char *chars) {
+int writeport(int fd, const char *chars) {
 	int len = strlen(chars);
 	//printf("writeport: %s\n",chars);
 	if (strchr(chars,'\r') - chars != len-1)

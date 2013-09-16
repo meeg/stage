@@ -106,7 +106,6 @@ int serialClass::moveAbsoluteTime(int ID, double pos, double accTime, double tot
 	return writeAndCheckACK(ID, output);
 }
 
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   	
 int serialClass::moveRelativeVel(int ID, double dist, double acc, double vel){
 	//~~~~~~~~~~ ERROR CHECK ~~~~~
@@ -130,6 +129,29 @@ int serialClass::moveRelativeVel(int ID, double dist, double acc, double vel){
 	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   	
+int serialClass::moveAbsoluteVel(int ID, double pos, double acc, double vel){
+	//~~~~~~~~~~ ERROR CHECK ~~~~~
+	/*if ( ){
+		printf("Err: serialClass::moveRelativeVel().  Ramp Time Too Large Compared to Total Time\n");
+		return -1;
+	}*/
+	if ( ( acc <= 0.0 ) | ( vel <= 0.0 ) ){
+		printf("Err: serialClass::moveAbsoluteVel().  Acc or vel parameters either zero or negative\n");
+		printf("acc=%f, vel=%f\n", acc, vel);
+
+		return -1;
+	}
+	if ( ( pos > SLIDE_LENGTH ) | ( pos < -1.0 * SLIDE_LENGTH ) ){
+		printf("Err: serialClass::moveAbsoluteVel(). Pos Larger Than Slide Length\n");
+		return -1;
+	}
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	
+	sprintf(output,"@%d %d %d %d %d 0 0\r",ID,MAV,distToCounts(ID,pos),accToSAU(ID,acc),velToSVU(ID,vel));
+	return writeAndCheckACK(ID, output);
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -148,28 +170,14 @@ int serialClass::clearPoll( int ID, int whichBit){//, bool debugOn ){
 
 	
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::poll(int ID, char* strToReturn){
+int serialClass::poll(int ID, int* intToReturn){
 	sprintf(output,"@%d %d\r",ID,POR);
 	writeMotSerPort(output);
-		
+
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[MAX_REPLY_LEN];
-	getMotReply( replyData);	
-	if ( replyData[0] == '#') {
-			printf("DATA POL\n");
-			strcpy(strToReturn, replyData);
-			return 0;
-	}else{
-		printf("Err: bad POR response\n");
-		printf("got:%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		strcpy(strToReturn, replyData);
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	getMotReply( replyData);
+	return readData(ID,replyData,1,intToReturn);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 int serialClass::returnPosition( int ID, double* pos ){
@@ -188,12 +196,13 @@ int serialClass::printPSW(int ID){
 	char replyData[MAX_REPLY_LEN];
 	getMotReply( replyData);	
 	int psw[1];
-	readData(ID,replyData,1,psw);
+	int status = readData(ID,replyData,1,psw);
 	for( int i = 15; i >= 0; i-- ){
 		if (psw[0] & (1 << i)) {
 			printPSWmessage( i );
 		}
 	}
+	return status;
 }
 
 int serialClass::printIO(int ID){
@@ -204,39 +213,24 @@ int serialClass::printIO(int ID){
 	char replyData[MAX_REPLY_LEN];
 	getMotReply( replyData);	
 	int iow[1];
-	readData(ID,replyData,1,iow);
+	int status = readData(ID,replyData,1,iow);
 	for( int i = 15; i >= 0; i-- ){
 		if (iow[0] & (1 << i)) {
 			printIOmessage( i );
 		}
 	}
+	return status;
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::readIO(int ID, char* strToReturn){
+int serialClass::readIO(int ID, int* intToReturn){
 	sprintf(output,"@%d %d\r",ID,RIO);
 	writeMotSerPort(output);
 
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[MAX_REPLY_LEN];
-	getMotReply( replyData);	
-	if ( replyData[0] == '#') {
-			//printf("ACK RIO\n");
-			strcpy(strToReturn, replyData);
-			//printf("%s\n", strToReturn);
-			//printf("returning 0\n");
-			return 0;
-	}else{
-		printf("Err: bad RIO response\n");
-		printf("%s\n", replyData);
-
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		strcpy(strToReturn, replyData);
-		return -1;
-	}
-	
-	return -1;		//should never be here
+	getMotReply(replyData);
+	return readData(ID,replyData,1,intToReturn);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -308,6 +302,20 @@ int serialClass::setKillMotorConditions(){
 	if ( Z_MOTOR_ACTIVE ) status = killMotorConditions(Z_AXIS_ID, 0, 0);
 		if ( status == -1 ) return -1;
 	return 0;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::writeHomeProgram(int ID){
+	switch (ID){
+		case X_AXIS_ID:
+		case Y_AXIS_ID:
+			return writeHomeProgramXY(ID);
+		case Z_AXIS_ID:
+			return writeHomeProgramZ(ID);
+		default:
+			printf("Err: invalid ID");
+			return -1;
+	}
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -559,7 +567,6 @@ int serialClass::writeHomeProgramXY(int ID){
 	sprintf(output,"@%d %d\r",ID,ZTP);
 	writeAndCheckACK(ID, output);
 
-/*
 	//rerun home program on a kill motor condition
 	sprintf(output,"@%d %d 512\r",ID,KMR);
 	writeAndCheckACK(ID, output);
@@ -573,7 +580,6 @@ int serialClass::writeHomeProgramXY(int ID){
 	stateWord |= 1 << 5;
 	sprintf(output,"@%d %d %d %d\r",ID,KMC,enableWord,stateWord);
 	writeAndCheckACK(ID, output);
-*/
 
 	//store program to NV memory, address 512
 	sprintf(output,"@%d %d %d\r",ID,SPR,512);
@@ -656,7 +662,7 @@ int serialClass::writeHomeProgramZ(int ID){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::runHomeProgram(int ID){
-	sprintf(output,"@%d %d %d\r",ID,LRP,512); //run program at NV address 0
+	sprintf(output,"@%d %d %d\r",ID,LRP,512); //run program at NV address 512
 	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -687,7 +693,7 @@ int serialClass::resetMotor(int ID){
 	//no ACK returned
 	usleep(3000000);
 	flush();		//processor resets, so flush the port
-	tcflush(fd, TCIFLUSH);
+	printPSW(ID);
 
 	return 0;		
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -706,11 +712,11 @@ int serialClass::resetMotor(int ID){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void serialClass::flush(void){
-		tcflush(fd, TCIFLUSH);	//flush motor's port		
+	tcflush(fd, TCIFLUSH);	//flush motor's port		
 }	
 		
 void serialClass::flushL(void){
-		tcflush(Ld, TCIFLUSH);	//flush laser's port		
+	tcflush(Ld, TCIFLUSH);	//flush laser's port		
 }	
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -851,7 +857,7 @@ const char * serialClass::cmdName(int cmdID) {
 	}
 }
 
-int serialClass::writeMotSerPort(char *output){
+int serialClass::writeMotSerPort(const char *output){
 	int ID,cmdID;
 	sscanf(output,"@%d %d",&ID,&cmdID);
 	int status = writeport(fd,output);
@@ -865,7 +871,7 @@ int serialClass::writeMotSerPort(char *output){
 	return status;
 }
 
-int serialClass::writeLas(char *output){
+int serialClass::writeLas(const char *output){
 	int status = writeport(Ld,output);
 	if (status) {
 		printf("wrote to laser: %s\n",output);
@@ -877,11 +883,18 @@ int serialClass::writeLas(char *output){
 	return status;
 }
 
-int serialClass::writeAndCheckACK( int ID, char* output ){
+int serialClass::writeAndCheckACK( int ID, const char* output ){
 	char replyData[MAX_REPLY_LEN];
 	writeMotSerPort(output);
 	getMotReply( replyData);	
 	return checkForACK( ID, replyData );
+}
+
+int serialClass::writeLasAndCheckACK( const char* output ){
+	char replyData[MAX_REPLY_LEN];
+	writeLas(output);
+	getLasReply( replyData);	
+	return checkLasACK( output, replyData );
 }
 
 int serialClass::checkForACK( int ID, char* inputArray ){
@@ -901,7 +914,7 @@ int serialClass::checkForACK( int ID, char* inputArray ){
 	return 0;
 }
 
-int serialClass::checkLasACK( char* outputArray, char* inputArray ){
+int serialClass::checkLasACK( const char* outputArray, char* inputArray ){
 	char * inputPtr = inputArray;
 
 	//for (int i=0;i<strlen(outputArray);i++) printf("%d\t%d\n",inputPtr[i],outputArray[i]);
@@ -1000,27 +1013,11 @@ int serialClass::initMotSerPort() {
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::changeAntiHunt(int ID) {
-	sprintf(output,"@%d %d %d %d\r",ID,AHC,4,6);
-	return writeAndCheckACK(ID, output);
-}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::goClosedLoop(int ID) {
 	sprintf(output,"@%d %d\r",ID,GCL);
 	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::changeACKdelay(int ID, double delay) {
-	sprintf(output,"@%d %d %d\r",ID,ADL,timeToTicks(delay/1000.0));
-	return writeAndCheckACK(ID, output);
-}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::closeSerialPort(void){
@@ -1039,65 +1036,9 @@ int serialClass::displayNACKerrors(char* inputArray) {
 }
 
 
-int serialClass::getIObitFromReply(char* inputArray, int whichBit){
-	//takes in a reply and using getHexArrayFromReply() takes out the last 4 hex digits.
-	//these 4 hex characters ( ) represent the polling status word PSW, are are then converted to bits.
-	//then it displays all error messages.
-
-	
-	//printf("in getIObitFromReply(), array=%s\n", inputArray);
-	char hexResult[4];	
-	int status = getHexArrayFromReply( inputArray, hexResult, 1);
-	if ( status != 0 ){ 
-		printf("Err: serialClass::displayPSWdescriptions, getHexArrayFromReply\n" ); 
-		return -1;
-	}			
-	//printf( "hexResult = %c%c%c%c\n", hexResult[0], hexResult[1], hexResult[2], hexResult[3] );
-			
-	long decResult;
-	status = convertHexArrayToDec(hexResult, &decResult);
-	//printf("getIObitFromReply:decResult=%ld\n", decResult);
-	if ( status != 0){ 
-		printf("Err: serialClass::displayPSWdescriptions, convertHexArrayToDec\n" ); 
-		return -1;
-	}
-
-	/*if ( decResult > 10000 ){		//if it's huge, consider that a negative number
-		decResult = pow(2, 32) - decResult;
-	}else{
-				
-	}*/
-	//printf("getting IO bit with decResult=%ld\n", decResult);
-	int binaryArray[16];
-	decNumberToBinaryArray( (int) decResult, binaryArray );
-
-	/*for( int j = 15; j >= 0; j-- ){
-		printf( "%d:%d, ", j, binaryArray[j] );
-	}*/
-	//printf("\n");
-	//sleep(0.01);	
-	//printf("--->getIObitFromReply result=%d\n", binaryArray[ whichBit ]); 
-	return binaryArray[ whichBit ];
-	
+int serialClass::getIObitFromReply(int word, int whichBit){
+	return (word >> whichBit) & 1;
 }
-
-int serialClass::displayIOdescriptions(char* inputArray){
-	//takes in a reply from RIO and takes out the last 4 hex digits.
-	//these 4 hex characters ( ) represent the I/O status word IOS, are are then converted to bits.
-	//then it displays all error messages.
-	int cmdID;
-	int responseID;
-	int ios;
-	sscanf(inputArray,"# %x %x %x\r",&responseID,&cmdID,&ios);
-	printf("cmdID 0x%4x, IOS 0x%4x\n",cmdID,ios);
-			
-	for( int i = 15; i >= 0; i-- ){
-		if (ios & (1 << i)) {
-			printIOmessage( i );
-		}
-	}
-	return 0;
-} //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 int serialClass::readRegister(int ID, int regID, int *data){
 	sprintf(output,"@%d %d %d\r",ID,RRG,regID);
@@ -1105,44 +1046,13 @@ int serialClass::readRegister(int ID, int regID, int *data){
 
 	char replyData[MAX_REPLY_LEN];
 	getMotReply( replyData);	
-	int nData;
+
+	int words[2];
+	int status = readData(ID,replyData,2,words);
+	*data = ((words[0] << 16) | words[1]);
 	
-//	readData(ID,replyData,
-	if ( replyData[0] == '#') {
-		printf("DATA RRG\n");
-		int cmdID;
-		int responseID;
-		int data1, data2;
-		sscanf(replyData,"# %x %x %x %x\r",&responseID,&cmdID,&data1,&data2);
-		*data = ((data1 << 16) | data2);
-		return 0;
-	}else{
-		printf("Err: bad RRG response\n");
-		printf("got:%s\n", replyData);
-		return -1;
-	}
+	return status;
 } //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::displayPSWdescriptions(char* inputArray) {
-	//takes in a reply from POL/POR and takes out the last 4 hex digits.
-	//these 4 hex characters ( ) represent the polling status word PSW, are are then converted to bits.
-	//then it displays all error messages.
-	int cmdID;
-	int responseID;
-	int psw;
-	sscanf(inputArray,"# %x %x %x\r",&responseID,&cmdID,&psw);
-	printf("cmdID 0x%4x, PSW 0x%4x\n",cmdID,psw);
-			
-	for( int i = 15; i >= 0; i-- ){
-		if (psw & (1 << i)) {
-			printPSWmessage( i );
-		}
-	}
-	return 0;
-}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::clearAllPSWbits(int ID){
@@ -1319,35 +1229,29 @@ void serialClass::printPSWmessage(int index){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::getCloseSwitch(int ID){
 	//return state of switch closest to home
-	
-	char replyData[MAX_REPLY_LEN];
+	int iow;
 	int status;
-	status = readIO(ID, replyData);		//X axis is unit ID of 1
+	status = readIO(ID, &iow);		//X axis is unit ID of 1
 	
-	return 1 - getIObitFromReply(replyData, IO2bit);		//1 for on, 0 for off
+	return 1 - getIObitFromReply(iow,IO2bit);	//1 for on, 0 for off
 }
 
 int serialClass::getFarSwitch(int ID){
 	//return state of switch farthest from home	
-
-	char replyData[MAX_REPLY_LEN];
+	int iow;
 	int status;
-	status = readIO(ID, replyData);		//X axis is unit ID of 1
-
-	return 1 - getIObitFromReply(replyData, IO1bit);		//1 for on, 0 for off
+	status = readIO(ID, &iow);		//X axis is unit ID of 1
+	
+	return 1 - getIObitFromReply(iow,IO1bit);	//1 for on, 0 for off
 }
 
 int serialClass::getHomeSwitch(int ID){
 	//return state of home point switch
-	
-	char replyData[MAX_REPLY_LEN];
+	int iow;
 	int status;
-	status = readIO(ID, replyData);		//X axis is unit ID of 1
-	//printf("got from readIO:%s\n", replyData);
-	//printf("about to get IObit\n");
-	int IObit = getIObitFromReply(replyData, IO3bit);
-	//printf("gotIObit=%d\n", IObit);
-	return 1 - IObit;		//for all stage axes, 1 for on, 0 for off
+	status = readIO(ID, &iow);		//X axis is unit ID of 1
+	
+	return 1 - getIObitFromReply(iow,IO3bit);	//1 for on, 0 for off
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1359,72 +1263,42 @@ int serialClass::zeroTarget(int ID){
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::isCommandDone(int ID){
-	//returns 1 if immediate command is done (PSW bit 15 is high) and 0 if not done (bit 15 is low still)
-	//motion commands should only execute if that bit's set, and they should clear it at the start of their motion.
-	char replyData[254];
-	int status, reply;
-	status = poll(ID, replyData);
-	if ( status == 0) {
-			printf("ACK in CMD_DONE\n");
-	}else{
-		printf("Err: bad CMD_DONE response\n");
-		printf("got:%s\n", replyData);
+int serialClass::waitForPSW(int ID, int whichBit, double maxWait){
+	int status;
+	int psw;
+	int count = 0;
+	double delay = 0.01;
 
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
-		return -1;
+	while (true) {
+		sleep(delay);
+		status = poll(ID, &psw);
+		
+		if (getIObitFromReply(psw, whichBit)) {
+			clearPoll(ID, whichBit);
+			return 0;
+		}
+		count++;
+		if (count*delay > maxWait) {
+			return -1;
+		}
 	}
-	
-	reply = getIObitFromReply(replyData, 15);
-	if ( reply == -1 ){
-		printf("ERR: isCommandDone()\n");
-		return -1;
-	}else if ( reply == 0 ){
-		printf("NOT DONE\n");
-		return 0;
-	}else if ( reply == 1 ){
-		printf("DONE!\n");
-		return 1;
-	}
-	printf("ERR: isCommandDone().  Should never be here.\n");
-	return -1;		//should never be here
-}
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+/*
 int serialClass::initIO(int ID){
 	//prep the I/O, for laser connection, etc.
 
 	setIObit(ID, IO7bit, 0);
 	return 0;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+*/
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::setIObit(int ID, int whichBit, int state){
-	//CIO
 	//set an IO bit.  state = -1 for high-Z, 1/0 for high/low.
-	//~~~~~~~~~~~~~~~~~~~
-	const int cmdID = 188;
-	//~~~~~~~~~~~~~~~~~~~
-	
-	sprintf(output,"@%d %d %d %d\r",ID,cmdID,whichBit,state);
-			
-	if (!writeport(fd, output)) {
-		printf("Err: CIO write failed\n");
-		//close(fd);
-		return 1;
-	}
-	else{
-		printf("CIO written:%s\n", output);
-		//tcflush(fd, TCIFLUSH);	//flush port		
-	}	
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[254];
-	getMotReply( replyData);	
-	return checkForACK( ID, replyData );
+	sprintf(output,"@%d %d %d %d\r",ID,CIO,whichBit,state);
+	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1433,41 +1307,75 @@ int serialClass::setIObit(int ID, int whichBit, int state){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::motInitSequence(int ID){
+	int status;
+	
+	//printf("ID=%d\n",ID);
+	status = resetMotor(ID);		//has built-in delay for resetting
+	printPSW(ID);
+	clearInternalStatus(ID);
+	clearAllPSWbits(ID);
+	
+	//define the target as here, else it could be undefined and the absolute command may be undefined
+
+	/*
+	status = s.setupEncoder(ID);
+	if ( status == -1 ) return -1;
+	
+	status = s.initDualLoop(ID);		
+	if ( status == -1 ) return -1;
+	*/
+			
+	printPSW(ID);
+	
+	status = writeInitProgram(ID);
+	status = waitForPSW(ID,15,1.0);
+	printPSW(ID);
+
+	status = runInitProgram(ID);
+	if ( status == -1 ) return -1;
+	status = waitForPSW(ID,12,5.0);
+	printPSW(ID);
+
+	status = writeHomeProgram(ID);
+	status = waitForPSW(ID,15,1.0);
+	printPSW(ID);
+
+	status = runHomeProgram(ID);
+	if ( status == -1 ) return -1;
+	status = waitForPSW(ID,12,100.0);
+	printPSW(ID);
+	printIO(ID);
+		
+	return 0;
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
+
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::movePosRel(int ID, double distance){
-
-	double time = max( fabs(distance / 4.0), 0.5);		
-	//if the step is zero, I need a small time parameter so that errors don't appear later.
-	
-	//printf("in movePosRel(), time=%f, dist=%f\n", time, distance);
-	
-	int status = moveRelativeTime(ID, distance, time / 3.0, time );		//about 1 cm/s
+	int status = moveRelativeVel(ID,distance,100.0,10.0);
 	if ( status == -1 ){
 			printf("ERR: movePosRel()\n");
 			stop(ID);
 			return -1;
 	}
-	sleep(time + 0.5);
-	return 0;
+	return waitForPSW(ID,13,1.0+distance/10.0);
 }
 
-
-
-int serialClass::movePosAbs(int ID, double distance){
+int serialClass::movePosAbs(int ID, double newPos){
 	double pos;
 	int status = returnPosition(ID, &pos);
 	if ( status == -1 ) return -1;
 	
-	double time = max( fabs(distance - pos) / 3.0, 0.5 );
-	status = moveAbsoluteTime(ID, distance, time / 6.0, time);
+	double time = max( fabs(newPos - pos) / 10.0, 1.0 );
+	status = moveAbsoluteVel(ID, newPos, 100.0, 10.0);
 	if ( status == -1 ){
 			printf("ERR: movePosAbs()\n");
 			stop(ID);
 			return -1;
 	}	
-	sleep( time + 0.5 );
-	return 0;
+	return waitForPSW(ID,13,time);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1569,12 +1477,7 @@ int serialClass::stepAndPulseSequence(int ID, double startPos, double stepSize,
 		return -1;			
 	}//~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
-	
-	//double pos;
 	int status;
-	//status = returnPosition(ID, &pos);
-	//if ( status == -1 ) return -1;
-	
 	
 	status = movePosAbs(ID, startPos);
 	if ( status == -1 ){
@@ -1583,9 +1486,6 @@ int serialClass::stepAndPulseSequence(int ID, double startPos, double stepSize,
 	
 	for(int i = 0; i < numOfIntervals; i++){
 		double newPos = startPos + i*stepSize;
-		double time = stepSize;
-		time = 0.7;
-		//printf("time=%f\n",time);
 		status = movePosAbs(ID, newPos);	
 		if ( status == -1 ){
 			printf("ERR: stepAndPulseSequence() while stepping\n");
@@ -1621,22 +1521,11 @@ int serialClass::pulseLaser(double duration, double intensity){
 	
 	int status;
 	printf("Pulsing Laser\n");
-	status = setIObit(X_AXIS_ID, 7, 1);
-	if ( status == -1 ){
-		return status;
-	}
-	
-	//status = setIObit(X_AXIS_ID, 7, 0);
 	
 	status = setLaserWidth_ns(duration);	
 	status = setLaserAmp_mV(intensity);	
 	status = sendLaserTrigger();
 
-			/*			
-	if ( status == -1 ){
-		return status;
-	}*/
-			
 	printf("Laser OFF\n");
 	
 	return 0;
@@ -1646,14 +1535,9 @@ int serialClass::pulseLaser(double duration, double intensity){
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::gotoHomePoint(int ID ){
-	double pos;
-	int status = returnPosition(ID, &pos);		//needed, to set the relative speeds with which to move.
-	if ( status == -1 ) return -1;
-	
-		status = movePosAbs( ID, 0.0 );
-		if ( status == -1 ){
-			printf("ERR: gotoHomePoint() sending moveAbsoluteTime command\n");
-			//stop(ID);
+	int status = movePosAbs( ID, 0.0 );
+	if ( status == -1 ){
+		printf("ERR: gotoHomePoint() sending moveAbsoluteTime command\n");
 		return -1;
 	}
 	return 0;
@@ -1676,128 +1560,8 @@ int serialClass::resetAsHomePoint(int ID ){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::clearInternalStatus(int ID) {
 	sprintf(output,"@%d %d\r",ID,CIS);
-	writeMotSerPort(output);
-
-        sleep(0.5);
-
-        //~~~~~~~~ reply ~~~~~~~~~
-        char replyData[MAX_REPLY_LEN];
-	getMotReply( replyData);	
-	return checkForACK( ID, replyData );
+	return writeAndCheckACK( ID, output );
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-
-
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int serialClass::gotoAndSetHomePoint(int ID){
-	
-	if ( ID < 1 ){
-			printf("ERR: gotoAndSetHomePoint() invalid ID\n");
-			return -1;
-	}
-	int eventuallyReturn = 0, status;
-	
-
-      if ( ID == Z_AXIS_ID ){
-                //special case for Z axis which doesn't have homing switches
-                flush();
-                sleep(1.0);
-                status = zeroTarget(ID);
-                sleep(0.5);
-                printf("About to move back towards home point\n");
-                double time = 2.5;
-                status = moveRelativeTime(ID, -4.0, time*3.0, time*6.0 );               //about 1 cm/s
-                if ( status == -1 ){
-                                printf("ERR: movePosRel()\n");
-                                stop(ID);
-                                return -1;
-                }
-                sleep(time + 0.5);
-                /*status = resetMotor(ID);              //by now the motor should have shut off due to thermal overload, so reset.
-
-                if ( status == -1 ){
-                        printf("ERR: serialClass::gotoAndSetHomePoint() sending moveRelativeTime command\n");
-                        eventuallyReturn = -1;                  //make sure it sticks around
-                        stop(ID);
-                        return -1;
-                }*/
-                sleep (1.0);
-                printf("Sending HAL\n");
-                status = stop( ID );
-                sleep (0.01);
-
-                status = clearInternalStatus(ID);
-                if ( status == -1 ){
-                        printf("ERR: serialClass::gotoAndSetHomePoint() sending CIS command\n");
-                        eventuallyReturn = -1;                  //make sure it sticks around
-                        stop(ID);
-                        return -1;
-                }
-
-                status = enableMotor(ID);
-                if ( status == -1 ){
-                        printf("ERR: serialClass::gotoAndSetHomePoint() sending HLT command\n");
-                        eventuallyReturn = -1;                  //make sure it sticks around
-                        stop(ID);
-                        return -1;
-                }
-
-
-                status = zeroTarget(ID);
-                sleep (0.05);
-                return 0;
-
-	}else{
-		
-		//first move out 10cm or so to make sure the home switch is cleared, then set 0 point, 
-		//then return from there, then reset zero point.
-
-		printf("About to move away from home point\n");
-		status = movePosRel(ID, 10.0);
-		if ( status == -1 ){
-			printf("ERR: gotoAndSetHomePoint() sending movePosRel command\n");
-			eventuallyReturn = -1;			//make sure it sticks around
-			stop(ID);
-			return -1;
-		}
-
-		flush();
-		sleep(1.0);
-		status = zeroTarget(ID);
-		sleep(0.5);
-		printf("About to move back towards home point\n");
-		status = moveRelativeTime(ID, -50.0, 0.1, 20.0);
-		if ( status == -1 ){
-			printf("ERR: serialClass::gotoAndSetHomePoint() sending moveRelativeTime command\n");
-			eventuallyReturn = -1;			//make sure it sticks around
-			stop(ID);
-			return -1;
-		}
-		sleep (0.01);	
-		while ( getHomeSwitch(ID) == 0){
-			//printf("checking switches\n");			
-			sleep ( 0.005 );		//should be 0.05, but is segfaulting on the cleanroom computer
-		}
-		status = stop( ID );
-		sleep (0.01);
-		status = zeroTarget(ID);
-		sleep (0.01);
-
-
-		if ( eventuallyReturn == -1 ){
-			return eventuallyReturn;
-		}
-	
-	
-	}
-	return 0;
-}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		
-
-
-
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::setLaserWidth_ns(double width){
@@ -1808,106 +1572,53 @@ int serialClass::setLaserWidth_ns(double width){
 		return -1;
 	}
 			
-	//sprintf(intArr, "%d", width);
-	int number = (int) width;
-	
-	sprintf(output,"puls:widt %dns\r",number);
-	
-	writeLas(output);
+	sprintf(output,"puls:widt %fns\r",width);
 	printf("width written:%s\n", output);
-
-	char replyData[254];
-	int status;
-	status = getLasReply(replyData);
-	status = checkLasACK(output,replyData);
-	
-	return status;
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::setLaserAmp_mV(double amp){
-	//width in nanoseconds
 	//amp in mV
-	
-	
 	if ( (amp < 0.0) | (amp > 10000) ){
 		printf("Pulse Amp Out of Range\n");
 		return -1;
 	}
-			
-	int number = (int) amp;
-	
-	sprintf(output,"voltage %dmV\r",number);
-	writeLas(output);
+
+	sprintf(output,"voltage %fmV\r",amp);
 	printf("Amp written:%s\n", output);
-	
-	char replyData[254];
-	int status;
-	status = getLasReply(replyData);
-	status = checkLasACK(output,replyData);
-	
-	return status;
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::sendLaserTrigger(void){
-	
 	strcpy(output,"trig:sour IMM\r");
-	writeLas(output);
 	printf("laser trigger written:%s\n", output);
-
-	char replyData[254];
-	int status;
-	status = getLasReply(replyData);
-	status = checkLasACK(output,replyData);
-	
-	return status;
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::turnOnLaserEcho( void ){
-		
 	strcpy(output,"syst:comm:serial:echo on\r");
-	
-	writeLas(output);
 	printf("laser echo written:%s\n", output);
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[254];
-	int status;
-	
-	status = getLasReply(replyData);		//laser port Ld.
-	status = checkLasACK(output,replyData);
-	return status;
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::disableLaserFlowControl(void){
-	
 	strcpy(output,"syst:comm:serial:control:rts on\r");
-	
-	writeLas(output);
 	printf("laser flowControl written:%s\n", output);
-	
-	//~~~~~~~~ reply ~~~~~~~~~
-	char replyData[254];
-	int status;
-	
-	status = getLasReply(replyData);		//laser port Ld.
-	status = checkLasACK(output,replyData);
-	return status;
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::requestLaserID(void){
-	
 	strcpy(output,"*IDN?\r");
-	
 	writeLas(output);
 	printf("*IDN? written:%s\n", output);
 
@@ -1922,13 +1633,10 @@ int serialClass::requestLaserID(void){
 	}else{
 		printf("Err: bad *IDN reply\n");
 		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
 		return -1;
 	}
 	
 	return -1;		//should never be here
-	
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -1992,14 +1700,10 @@ int serialClass::initLaserSerPort() {
 	
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserRemoteEnable( void ){
-	//width in nanoseconds
-	
 	strcpy(output,"remote\r");
-	
 	writeLas(output);
 	printf("remote written:%s\n", output);
 
-	//sleep (0.1);
 	//~~~~~~~~ reply ~~~~~~~~~
 	char replyData[254];
 	int status;
@@ -2011,48 +1715,29 @@ int serialClass::laserRemoteEnable( void ){
 	}else{
 		printf("Err: bad remote reply\n");
 		printf("got:%s\n", replyData);
-		//printf( "\n" );
-		//status = displayPSWdescriptions( replyData );
 		return -1;
 	}
 	
 	return -1;		//should never be here
-	
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserEnableOutput( void ){
-	char replyData[254];
-	int status;
-//	status = getLasReply(replyData);
-//	sleep (0.1);
 	strcpy(output,"output on\r");
-	writeLas(output);
-	
-	//sleep (0.1);
-
-	//~~~~~~~~ reply ~~~~~~~~~
-	
-	status = getLasReply(replyData);
-	status = checkLasACK(output,replyData);
-	
-	return status;
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int serialClass::laserDisableOutput( void ){
-	char replyData[254];
-	int status;
 	strcpy(output,"output off\r");
-		
-	writeLas(output);
-	printf("output off written:%s\n", output);
-	
-	//sleep (0.1);
-	status = getLasReply(replyData);
-	status = checkLasACK(output,replyData);
-	return status;
+	return writeLasAndCheckACK(output);
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::laserTriggerHold( void ){
+	strcpy(output,"trigger:source hold\r");
+	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -2082,4 +1767,21 @@ int serialClass::laserLocalEnable( void ){
 	
 	return -1;		//should never be here
 	
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int serialClass::laserInitSequence( void ){
+	int status;
+	printf("Initializing Laser System\n");
+	status = initLaserSerPort();
+	
+	status = laserRemoteEnable();
+	status = disableLaserFlowControl();
+	status = turnOnLaserEcho();
+	status = laserTriggerHold();
+	status = setLaserWidth_ns(2.0);
+	status = setLaserAmp_mV(1000.0);
+	status = laserEnableOutput();
+		
+	return status;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

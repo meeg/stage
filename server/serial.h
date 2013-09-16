@@ -14,7 +14,7 @@
 
 #include "capser.h"
 #include "utils.h"
-#include "laser.h"
+//#include "laser.h"
 
 using namespace std;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -45,7 +45,7 @@ using namespace std;
 #define SET_LASER_AMP 21
 #define TRIG_LASER 22
 
-#define SLIDE_LENGTH 50.0					//length of x,y stage 
+#define SLIDE_LENGTH 500.0					//length of x,y stage in mm
 #define SLIDE_LENGTH_UM 50.0*10000.0	//length of x,y stage in um
 #define XYSTEPSIZE 0.1						//default step size for the float boxes
 
@@ -254,7 +254,7 @@ enum cmd_id {
 //~~~~~~~~~~~~~~~~~~ variables ~~~~~~~~~~~~~~~~~~
 //dist in mm, all times in s
 
-const double ticksPerMM = 15748.0;
+const double ticksPerMM = 8000/(0.2*25.4);
 const double ticksPerSecond = 1 / 0.000120;		//number of clock ticks per second
 const double velFactor = 1000.0;
 const double accFactor = 100.0;
@@ -263,19 +263,13 @@ const double accFactor = 100.0;
 	
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
 class serialClass{
-	public:
-			
+	private:
 		//~~~~~~~~~~~~~~~~~~ CONSTANTS ~~~~~~~~~~~~~~~~~~
 		int fd; // File descriptor for the motor's serial port
 		int Ld; // File descriptor for the laser's serial port
 	
-		char devicename[80];
 		char output[254];
 		#define Baud_Rate 57600;         // default Baud Rate (110 through 38400)
-
-
-		//~~~~~~~~~~~ variables ~~~~~~~~~~~
-		int IOstates;
 
 		//~~~~~~~~~ unit conversion ~~~~~~~~~
 		int timeToTicks(double time); //units of sec
@@ -285,83 +279,95 @@ class serialClass{
 		int velToSVU(int ID, double vel); //units of mm/s
 		int accToSAU(int ID, double acc); //units of mm/s^2
 
-
 		//~~~~~~~~~ CMD functions ~~~~~~~~~
-		const char * cmdName(int cmdID);
+
+		int poll(int ID, int* intToReturn);		//POR
 		int clearPoll(int ID, int whichBit);//, bool debugOn = false);	//CPL
-		int poll(int ID, char* strToReturn);		//COR
-   	int readIO(int ID, char* strToReturn );			//RIO
-		int initDualLoop(int ID);	//DLC
-		int initSingleLoop(int ID);
+		int readIO(int ID, int* intToReturn );			//RIO
+		int readRegister(int ID, int regID, int *data);
+		int resetMotor(int ID);
+		int clearInternalStatus(int ID);
 		int halt(int ID);	//HAL
 		int stop(int ID);	//STP
 		int enableMotor(int ID); //EMD
-		int moveRelativeTime( int ID, double dist, double rampTime, double totalTime );
-		int moveAbsoluteTime( int ID, double pos, double accTime, double totalTime );
-		int moveRelativeVel( int ID, double dist, double acc, double vel );
-
-		int resetMotor(int ID);
+		int initSingleLoop(int ID);
+		int initDualLoop(int ID);	//DLC
 		int setupEncoder(int ID);
-		int killMotorConditions(int ID, int enableWord, int stateWord);
-		int readRegister(int ID, int regID, int *data);
-				
-		int writeInitProgram(int ID);
-		int writeHomeProgramXY(int ID);
-		int writeHomeProgramZ(int ID);
-		int runHomeProgram(int ID);
-		int runInitProgram(int ID);
-
-		//~~~~~~~~~~~ serial IO ~~~~~~~~~~~
-		int initMotSerPort(void); 		//initialize the serial port going to the motors.
-		int initLaserSerPort(void); 	//initialize the serial port going to the pulser.
-		int writeMotSerPort(char *output);
-		int writeLas(char *output);
-		int closeSerialPort(void);
-		int closeLaserSerialPort(void);
-		void flush(void);
-		void flushL(void);
-		int changeACKdelay(int ID, double delay);
-		int changeAntiHunt(int ID);
+		int zeroTarget(int ID);
 		int goClosedLoop(int ID);
-		int getMotReply(char *result);
-		int getLasReply(char *result);
-		int writeChar( char charArray[], int len );
-		int checkForACK( int ID, char* inputArray );
-		int checkLasACK(char* outputArray, char *inputArray);
-		int readData( int ID, char* inputArray, int nData, int* dataArray );
-		int writeAndCheckACK( int ID, char* output );
-      virtual ~serialClass ( void );
-		serialClass ( void );
-	
-		
-		//~~~~~~~~~~ serial utilities ~~~~~~~~~~~~
-		int displayPSWdescriptions(char* inputArray);
-		int displayIOdescriptions(char* inputArray);
-		int displayNACKerrors(char* inputArray);
-		int clearAllPSWbits(int ID);
-		int clearInternalStatus(int ID);
-		void printPSWmessage(int index);
-		void printIOmessage(int index);
-		int printPSW(int ID);
-		int printIO(int ID);
-		int getIObitFromReply(char* inputArray, int whichBit);
+		int killMotorConditions(int ID, int enableWord, int stateWord);
+
+		//int initIO(int ID);
+		int setIObit(int ID, int whichBit, int state);
 		int getCloseSwitch(int ID);
 		int getFarSwitch(int ID);
 		int getHomeSwitch(int ID);
-		int zeroTarget(int ID);
-		int isCommandDone(int ID);
-		int initIO(int ID);
-		int setIObit(int ID, int whichBit, int state);
+
+		int moveRelativeTime( int ID, double dist, double rampTime, double totalTime );
+		int moveAbsoluteTime( int ID, double pos, double accTime, double totalTime );
+		int moveRelativeVel( int ID, double dist, double acc, double vel );
+		int moveAbsoluteVel( int ID, double pos, double acc, double vel );
+
+		int writeInitProgram(int ID);
+		int writeHomeProgram(int ID);
+		int runInitProgram(int ID);
+		int writeHomeProgramXY(int ID);
+		int writeHomeProgramZ(int ID);
+
+		int waitForPSW(int ID, int whichBit, double maxWait);
+
+		//~~~~~~~~~~~ serial IO ~~~~~~~~~~~
+		void flush(void);
+		void flushL(void);
+		int writeMotSerPort(const char *output);
+		int writeLas(const char *output);
+		int writeAndCheckACK( int ID, const char* output );
+		int writeLasAndCheckACK(const char *output);
+		int readData( int ID, char* inputArray, int nData, int* dataArray );
+		int getMotReply(char *result);
+		int getLasReply(char *result);
+		int checkForACK( int ID, char* inputArray );
+		int checkLasACK(const char* outputArray, char *inputArray);
+
+		const char * cmdName(int cmdID);
+		void printPSWmessage(int index);
+		void printIOmessage(int index);
+		int displayNACKerrors(char* inputArray);
+		int getIObitFromReply(int word, int whichBit);
+
+		//~~~~~~~~~~~ Laser Pulser ~~~~~~~~~~~~~
+		int initLaserSerPort(void); 	//initialize the serial port going to the pulser.
+		int requestLaserID( void );
+		int turnOnLaserEcho( void );
+		int laserRemoteEnable( void );
+		int disableLaserFlowControl(void);
+		int laserEnableOutput( void );
+		int laserDisableOutput( void );
+		int laserTriggerHold( void );
+	public:
+		virtual ~serialClass ( void );
+		serialClass ( void );
+
+		int motInitSequence(int ID);
+
+		//~~~~~~~~~~~ serial IO ~~~~~~~~~~~
+		int initMotSerPort(void); 		//initialize the serial port going to the motors.
+		int closeSerialPort(void);
+		int closeLaserSerialPort(void);
+
+		//~~~~~~~~~~ serial utilities ~~~~~~~~~~~~
+		int clearAllPSWbits(int ID);
+		int printPSW(int ID);
+		int printIO(int ID);
 		int killActiveMotors(void);		
 		int setKillMotorConditions(void);		
 		int returnPosition( int ID, double* pos );
-		int pulseLaser(double duration, double intensity);
 		
 		//~~~~~~~~~~~~  motion sets  ~~~~~~~~~~~~
+		int runHomeProgram(int ID);
 		int movePosRel(int ID, double distance);
-		int movePosAbs(int ID, double distance);
+		int movePosAbs(int ID, double newPos);
 		int gotoHomePoint(int ID);
-		int gotoAndSetHomePoint( int ID );
 		int resetAsHomePoint( int ID );
 		int stepAndPulseSequence(int ID, double startPos, double stepSize, 
 							int numOfIntervals, double	duration, double intensity);
@@ -370,16 +376,11 @@ class serialClass{
 											int numOfSteps, double	laserWidth, double laserAmp);
 
 		//~~~~~~~~~~~ Laser Pulser ~~~~~~~~~~~~~
-		int requestLaserID( void );
-		int turnOnLaserEcho( void );
-		int laserRemoteEnable( void );
-		int laserLocalEnable( void );
-		int disableLaserFlowControl(void);
+		int laserInitSequence(void);
 		int setLaserWidth_ns( double width );
 		int setLaserAmp_mV(double amp);
 		int sendLaserTrigger(void);
-		int laserEnableOutput( void );
-		int laserDisableOutput( void );
-				
+		int pulseLaser(double duration, double intensity);
+		int laserLocalEnable( void );
 };//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #endif

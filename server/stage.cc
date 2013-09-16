@@ -53,7 +53,7 @@
 #include "xmlwriter.h"
 #include "serial.h"
 #include "utils.h"
-#include "motion.h"
+//#include "motion.h"
 #include "gui.h"
 //#include "test.h"
 
@@ -280,8 +280,7 @@ int main( int argc, char **argv )
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//if the program breaks and exits to here, then shut down gracefully, but first see what happened.
 	s.clearAllPSWbits(ID);
-	status = s.poll(ID, receivedData);
-	status = s.displayPSWdescriptions( receivedData );
+	status = s.printPSW(ID);
 	endProgramOnError(status);
 					
 
@@ -290,9 +289,7 @@ int main( int argc, char **argv )
 	sleep(2.0);	
 	
 	status = s.clearAllPSWbits(ID);
-	status = s.clearPoll(ID, 2);		//0..15
-	status = s.poll(ID, receivedData );
-	status = s.displayPSWdescriptions( receivedData );
+	status = s.printPSW(ID);
 	endProgram();
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
@@ -323,45 +320,28 @@ int initEverything(void){
 			
 	
 	#ifdef useLaser
-	//~~~~~~~~~~~~~~~~~~~~~~~~~
-	printf("Initializing Laser System\n");
-	status = s.initLaserSerPort();
-	
-	status = s.laserRemoteEnable();
-	//sleep (0.5);
-	status = s.disableLaserFlowControl();
-	//sleep (0.2);
-	status = s.turnOnLaserEcho();
+	status = s.laserInitSequence();
 	//sleep (0.2);
 	status = s.setLaserWidth_ns(desiredLaserWidth);
 	//sleep (0.2);
 	status = s.setLaserAmp_mV(desiredLaserAmp);
-	//sleep (0.2);
-	status = s.laserEnableOutput();
-	sleep (0.2);
-		
-	//status = s.sendLaserTrigger();
-	//if ( status < 0 ) return -1;
-	
-	//status = s.laserLocalEnable();	
-	//~~~~~~~~~~~~~~~~~~~~~~~~~	
 	#endif
 			
 		
 	//~~~~~~~~~~~~~~~~~~~~~~~~~	
 	if ( X_MOTOR_ACTIVE == 1 ){
 		printf("\ninit X\n");
-	   status = motInitSequence( X_AXIS_ID );
+	   status = s.motInitSequence( X_AXIS_ID );
 		if ( status < 0 ) return -1;
 	}
 	if ( Y_MOTOR_ACTIVE == 1 ){
 		printf("\ninit Y\n");
-	   status = motInitSequence( Y_AXIS_ID );
+	   status = s.motInitSequence( Y_AXIS_ID );
 		if ( status < 0 ) return -1;
 	}
 	if ( Z_MOTOR_ACTIVE == 1 ){
 		printf("\ninit Z\n");
-	   status = motInitSequence( Z_AXIS_ID );
+	   status = s.motInitSequence( Z_AXIS_ID );
 		if ( status < 0 ) return -1;
 	}//~~~~~~~~~~~~~~~~~~~~~~~~~
 	
@@ -379,99 +359,6 @@ int initEverything(void){
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
 
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-int motInitSequence(int ID){
-	int status;
-	//s.enableMotor(ID);		//bad response always?
-	
-	//printf("ID=%d\n",ID);
-	status = s.resetMotor(ID);		//has built-in delay for resetting
-	s.printPSW(ID);
-	s.clearAllPSWbits(ID);
-	s.clearInternalStatus(ID);
-	
-	//define the target as here, else it could be undefined and the absolute command may be undefined
-
-	
-	//status = s.enableMotor(ID);
-	//endProgramOnError(status);
-	
-	/*	
-	status = s.killActiveMotors();
-	endProgramOnError(status);
-	
-	status = s.enableMotor(ID);
-	endProgramOnError(status);
-		*/
-
-	//status = s.changeACKdelay( ID, 32.0 );
-	//if ( status == -1 ) return -1;
-
-	/*
-	status = s.setupEncoder(ID);
-	if ( status == -1 ) return -1;
-	
-	status = s.initDualLoop(ID);		
-	if ( status == -1 ) return -1;
-	*/
-			
-	//status = s.goClosedLoop(ID);
-	//if ( status == -1 ) return -1;
-
-				
-	//status = s.initIO(ID);
-	//if ( status == -1 ) return -1;
-
-	//status = s.zeroTarget(ID);
-	//if ( status == -1 ) return -1;					
-	
-	//status = s.changeAntiHunt(ID);
-	//if ( status == -1 ) return -1;
-		
-	
-	//sleep(0.001);	
-	//status = s.clearPoll(ID, 2);
-	//if ( status == -1 ) return -1;
-
-	s.printPSW(ID);
-	s.clearAllPSWbits(ID);
-	
-	status = s.writeInitProgram(ID);
-	sleep(0.1);	
-	s.printPSW(ID);
-	s.clearAllPSWbits(ID);
-
-	status = s.runInitProgram(ID);
-	if ( status == -1 ) return -1;
-	sleep(1.0);	
-	s.printPSW(ID);
-	s.clearAllPSWbits(ID);
-
-	switch (ID){
-		case X_AXIS_ID:
-		case Y_AXIS_ID:
-			status = s.writeHomeProgramXY(ID);
-			break;
-		case Z_AXIS_ID:
-			status = s.writeHomeProgramZ(ID);
-			break;
-		default:
-			printf("Err: invalid ID");
-			return -1;
-	}
-	sleep(0.1);	
-	s.printPSW(ID);
-	s.clearAllPSWbits(ID);
-
-	status = s.runHomeProgram(ID);
-	if ( status == -1 ) return -1;
-	sleep(1.0);	
-	s.printPSW(ID);
-	s.printIO(ID);
-		
-	return 0;
-}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
 
 
@@ -819,9 +706,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 				return 0;
 				break;					
 			}
-			//status = s.enableMotor(ID);
-			//endProgramOnError(status);
-			status = s.gotoAndSetHomePoint(whichID);
+			status = s.runHomeProgram(whichID);
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
@@ -838,8 +723,6 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 				//endProgramOnError(-1);
 				break;					
 			}				
-			//status = s.enableMotor(whichID);
-			//endProgramOnError(status);
 
 			status = s.gotoHomePoint(whichID);
 			if (status == -1 ) return status;
@@ -922,13 +805,6 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;
 			//cout << replyArr << endl;
 			return status;					
-		//case	:			
-			//status = s.poll(whichID, receivedData );
-			//status = s.displayPSWdescriptions( receivedData );
-			//endProgramOnError(status);
-			//break;
-
-
 		case SET_LASER_WIDTH:
 			printf("LASER_WIDTH\n");
 			//status = s.setLaserWidth_ns(laserWidth);
@@ -968,8 +844,6 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 				//endProgramOnError(-1);
 				break;					
 			}				
-			//status = s.enableMotor(whichID);
-			//endProgramOnError(status);
 
 			status = s.resetAsHomePoint(whichID);
 			if (status == -1 ) return status;
