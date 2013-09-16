@@ -47,7 +47,7 @@ int motionClass::distToCounts(int ID, double dist){
 int motionClass::velToSVU(int ID, double vel){
 	double maxVel = screwPitch(ID)*4000.0/60.0; //4000 RPM
 	int velInt = (int) (pow(2,31.0)*vel/maxVel);
-	printf("vel = %f maxVel=%f velInt = %d\n",vel,maxVel,velInt);
+	//printf("vel = %f maxVel=%f velInt = %d\n",vel,maxVel,velInt);
 	return velInt;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -55,7 +55,7 @@ int motionClass::velToSVU(int ID, double vel){
 int motionClass::accToSAU(int ID, double acc){
 	double maxAcc = screwPitch(ID)*4000.0/60.0/2.0/120e-6; //maxVel/2/tick
 	int accInt = (int) (pow(2,30.0)*acc/maxAcc);
-	printf("acc = %f maxAcc=%f accInt = %d\n",acc,maxAcc,accInt);
+	//printf("acc = %f maxAcc=%f accInt = %d\n",acc,maxAcc,accInt);
 	return accInt;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -545,14 +545,14 @@ int motionClass::writeHomeProgramXY(int ID){
 	sprintf(output,"@%d %d\r",ID,SDL);
 	writeAndCheckACK(ID, output);
 
-	//move 100 mm towards the middle
+	//move 50 mm towards the middle
 	int enableWord = 0;
 	int stateWord = 0;
-	enableWord |= 1 << 12; //if I/O #1 (positive limit) is true, reverse direction
-	stateWord |= 1 << 12;
+	enableWord |= 1 << 13; //if I/O #2 (negative limit) is true, reverse direction
+	stateWord |= 1 << 13;
 	enableWord |= 1 << 6; //record position when I/O #3 (home) is true - not actually used
 	//stateWord |= 1 << 6;
-	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRT,distToCounts(ID,100.0),timeToTicks(0.1),timeToTicks(3.0),enableWord,stateWord);
+	sprintf(output,"@%d %d %d %d %d %d %d\r",ID,MRT,distToCounts(ID,50.0),timeToTicks(0.1),timeToTicks(2.0),enableWord,stateWord);
 	writeAndCheckACK(ID, output);
 
 	//move -500 mm, stop when I/O #3 (home) is true
@@ -874,7 +874,7 @@ int motionClass::readData( int ID, char* inputArray, int nData, int* dataArray )
 	tok = strtok(NULL," ");
 	int readCmdID;
 	sscanf(tok,"%x",&readCmdID);
-	printf("response packet for command %s\n",cmdName(readCmdID));
+	printf("response packet for command %s: %s\n",cmdName(readCmdID),inputArray);
 		
 	tok = strtok(NULL," ");
 	for (int i=0;i<nData;i++) {
@@ -1176,13 +1176,12 @@ int motionClass::zeroTarget(int ID){
 	return writeAndCheckACK(ID, output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int motionClass::waitForPSW(int ID, int whichBit, double maxWait){
 	int status;
 	int psw;
 	int count = 0;
-	double delay = 0.01;
+	double delay = 0.1;
 
 	while (true) {
 		sleep(delay);
@@ -1198,6 +1197,31 @@ int motionClass::waitForPSW(int ID, int whichBit, double maxWait){
 		}
 	}
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int motionClass::waitForMotionAndPSW(int ID, int whichBit, double maxWait){
+	int status;
+	int psw,iow;
+	int count = 0;
+	double delay = 0.1;
+
+	while (true) {
+		sleep(delay);
+		status = poll(ID, &psw);
+		
+		status = readIO(ID, &iow);
+		if (getIObitFromReply(psw, whichBit)) {
+			clearPoll(ID, whichBit);
+			if (!getIObitFromReply(iow,3))
+				return 0;
+		}
+		count++;
+		if (count*delay > maxWait) {
+			return -1;
+		}
+	}
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 /*
 int motionClass::initIO(int ID){
@@ -1242,23 +1266,27 @@ int motionClass::motInitSequence(int ID){
 	*/
 			
 	printPSW(ID);
+	printIO(ID);
 	
 	status = writeInitProgram(ID);
 	status = waitForPSW(ID,15,1.0);
 	printPSW(ID);
+	printIO(ID);
 
 	status = runInitProgram(ID);
 	if ( status == -1 ) return -1;
-	status = waitForPSW(ID,12,5.0);
+	status = waitForMotionAndPSW(ID,13,5.0);
 	printPSW(ID);
+	printIO(ID);
 
 	status = writeHomeProgram(ID);
 	status = waitForPSW(ID,15,1.0);
 	printPSW(ID);
+	printIO(ID);
 
 	status = runHomeProgram(ID);
 	if ( status == -1 ) return -1;
-	status = waitForPSW(ID,12,100.0);
+	status = waitForMotionAndPSW(ID,13,100.0);
 	printPSW(ID);
 	printIO(ID);
 		

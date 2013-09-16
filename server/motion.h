@@ -313,6 +313,7 @@ class motionClass{
 		int writeHomeProgramZ(int ID);
 
 		int waitForPSW(int ID, int whichBit, double maxWait);
+		int waitForMotionAndPSW(int ID, int whichBit, double maxWait);
 
 		//~~~~~~~~~~~ serial IO ~~~~~~~~~~~
 		void flush(void);
