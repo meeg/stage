@@ -19,6 +19,8 @@ int sendArrReply( char* replyArr );
 int parseThroughXMLstring( void );
 int addLFtoEndofXMLstring( void );
 double returnPosFromMain( void );
+int stepAndPulseSequence(int ID, double startPos, double stepSize, int numOfIntervals, double duration, double intensity);
+int stepAndPulseSequenceBothAxes(int ID1, int ID2, double startPos1, double startPos2, double stepSize1, double stepSize2, int numOfSteps, double laserWidth, double laserAmp);
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
 //comment out if the laser isn't being used (ie. that serial port won't be opened, etc)

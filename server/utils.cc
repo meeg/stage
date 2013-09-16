@@ -1,5 +1,4 @@
 #include "utils.h"
-#include "serial.h"
 
 int turnNumberIntoCharArray(int ID, char* resultingCharArray, double num ){
 	//turn a number into a character array, with the first character being the device ID for easy parsing.

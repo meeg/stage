@@ -17,7 +17,7 @@
 //#include </usr/include/kde/kled.h>
 //#include "qfloatspinbox.h"
 
-#include "serial.h"
+#include "motion.h"
 //class customWidget;
 #define MAX_XY_LENGTH_mm 350		//max length of XY in mm
 #define MAX_Z_LENGTH_mm 30			//max length of Z in mm
@@ -30,7 +30,7 @@ extern double desiredXabs, desiredYabs, desiredZabs;
 extern double desiredLaserWidth, desiredLaserAmp;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
-class serialClass;
+class motionClass;
 class FloatSpinBox;
 class customWidget : public QVBox
 {
@@ -38,7 +38,7 @@ class customWidget : public QVBox
 	//friend class GUIinterfaceClass;		
 	
 	public:
-		customWidget( serialClass *sp, QWidget *parent=0, const char *name=0 );
+		customWidget( QWidget *parent=0, const char *name=0 );
 		//customWidget( serialClass *sp);
 		double getPosFromMain( void );
 				
@@ -53,7 +53,7 @@ class customWidget : public QVBox
 		QStatusBar *statusBar;
 		QLCDNumber *currX,*currY, *currZ;
 		//int printXvalOnChange( int val);
-		serialClass sp;		//passed in from stage.cc
+		//motionClass sp;		//passed in from stage.cc
 		
 
 	public slots:

@@ -16,7 +16,7 @@ Server-side GUI for the motor/laser stage system
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-customWidget::customWidget( serialClass *sp, QWidget *parent, const char *name )
+customWidget::customWidget( QWidget *parent, const char *name )
         : QVBox( parent, name ){
 
 	/*	

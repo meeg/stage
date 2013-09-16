@@ -6,7 +6,7 @@ CONFIG	+= qt warn_on release thread
 HEADERS	+= stage.h
 HEADERS	+= utils.h
 HEADERS	+= capser.h
-HEADERS	+= serial.h
+#HEADERS	+= serial.h
 HEADERS += irrXML.h
 HEADERS	+= laser.h
 HEADERS	+= motion.h
@@ -17,7 +17,7 @@ HEADERS += gui.h
 
 SOURCES	+= utils.cc
 SOURCES	+= capser.cc
-SOURCES	+= serial.cc
+#SOURCES	+= serial.cc
 SOURCES += irrXML.cc
 SOURCES	+= laser.cc
 SOURCES	+= stage.cc
