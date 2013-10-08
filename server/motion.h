@@ -27,6 +27,9 @@ using namespace std;
 #define Y_MOTOR_ACTIVE 1
 #define Z_MOTOR_ACTIVE 1
 
+#define X_USE_EXTERNAL_ENC false
+#define Y_USE_EXTERNAL_ENC false
+
 #define X_AXIS_ID 1
 #define Y_AXIS_ID 2
 #define Z_AXIS_ID 3
@@ -255,6 +258,8 @@ enum cmd_id {
 //dist in mm, all times in s
 
 const double ticksPerMM = 8000/(0.2*25.4);
+const double externalEncoderResolution = 0.0005;
+//const double externalEncoderResolution = 0.002;
 const double ticksPerSecond = 1 / 0.000120;		//number of clock ticks per second
 const double velFactor = 1000.0;
 const double accFactor = 100.0;
@@ -270,9 +275,12 @@ class motionClass{
 		char output[254];
 		#define Baud_Rate 57600;         // default Baud Rate (110 through 38400)
 
+		bool useExternalEnc(int ID);
+
 		//~~~~~~~~~ unit conversion ~~~~~~~~~
 		int timeToTicks(double time); //units of sec
 		double screwPitch(int ID); //units of mm
+		double internalEncoderResolution(int ID); //units of mm
 		double distPerCount(int ID); //units of mm
 		int distToCounts(int ID, double dist); //units of mm
 		int velToSVU(int ID, double vel); //units of mm/s
@@ -328,6 +336,8 @@ class motionClass{
 		void printIOmessage(int index);
 		int displayNACKerrors(char* inputArray);
 		int getIObitFromReply(int word, int whichBit);
+		int returnInternalPosition( int ID, double* pos );
+		int returnExternalPosition( int ID, double* pos );
 
 	public:
 		virtual ~motionClass ( void );
