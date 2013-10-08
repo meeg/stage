@@ -349,7 +349,7 @@ int customWidget::moveXabs( void ){
 	printf("In move X abs\n");	
 	int status;
 	if ( X_MOTOR_ACTIVE == 1 ) {
-		status = executeRequestedCommand(X_AXIS_ID, ABS_MOTION, desiredXabs / 10000.0, 2);		//the stage takes in cm.
+		status = executeRequestedCommand(X_AXIS_ID, ABS_MOTION, desiredXabs / 1000.0, 2);		//the stage takes in cm.
 		if ( status == -1 ) {
 			//error indicator light		
 			printf("Err in QT: X move Abs\n");
@@ -369,7 +369,7 @@ int customWidget::moveYabs( void ){
 	printf("In move Y Abs\n");	
 	int status;
 	if ( Y_MOTOR_ACTIVE == 1 ){
-		status = executeRequestedCommand(Y_AXIS_ID, ABS_MOTION, desiredYabs / 10000.0, 2);		//the stage takes in cm.
+		status = executeRequestedCommand(Y_AXIS_ID, ABS_MOTION, desiredYabs / 1000.0, 2);		//the stage takes in cm.
 		if ( status == -1 ) {
 			//error indicator light		
 			printf("Err in QT: Y move Abs\n");
@@ -389,7 +389,7 @@ int customWidget::moveZabs( void ){
 	printf("In move Z Abs\n");	
 	int status;
 	if ( Z_MOTOR_ACTIVE == 1 ){
-		status = executeRequestedCommand(Z_AXIS_ID, ABS_MOTION, desiredZabs / 10000.0, 2);		//the stage takes in cm.
+		status = executeRequestedCommand(Z_AXIS_ID, ABS_MOTION, desiredZabs / 1000.0, 2);		//the stage takes in cm.
 		if ( status == -1 ) {
 			//error indicator light		
 			printf("Err in QT: Z move Abs\n");
