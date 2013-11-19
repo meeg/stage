@@ -8,6 +8,8 @@ Server-side GUI for the motor/laser stage system
 #include <qpushbutton.h>
 #include <qlineedit.h>
 #include <qvalidator.h>
+//Added by qt3to4:
+#include <QLabel>
 #include <gui.h>
 #include "stage.h"
 #include <math.h>
@@ -17,7 +19,7 @@ Server-side GUI for the motor/laser stage system
 
 
 customWidget::customWidget( QWidget *parent, const char *name )
-        : QVBox( parent, name ){
+        : Q3VBox( parent, name ){
 
 	/*	
 	printf("In GUI constructor\n");
@@ -79,8 +81,8 @@ customWidget::customWidget( QWidget *parent, const char *name )
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//default values for sliders and absolute spin boxes
-	xslider = new QSlider( Horizontal, this, "xslider" );
-   	yslider = new QSlider( Vertical, this, "yslider" );
+	xslider = new QSlider( Qt::Horizontal, this, "xslider" );
+   	yslider = new QSlider( Qt::Vertical, this, "yslider" );
 	xslider->setRange( 0, MAX_XY_LENGTH_um );
    	xslider->setValue( startValX ); 
 	yslider->setRange( 0, MAX_XY_LENGTH_um );
@@ -219,6 +221,8 @@ customWidget::customWidget( QWidget *parent, const char *name )
 	
 	//connect the program interface to the GUI		    
 	statusBar = new QStatusBar( this, "statusbar" );
+	QLabel *laserTriggerLabel = new QLabel("text!",this);
+	statusBar->addWidget(laserTriggerLabel);
 	setFixedHeight(950);
 	setFixedWidth(250);
 	statusBar->message("System Ready");	

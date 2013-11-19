@@ -6,14 +6,15 @@
 #include <qslider.h>
 #include <qlcdnumber.h>
 #include <qfont.h>
-#include <qvbox.h>
-#include <qgrid.h>
+#include <q3vbox.h>
+#include <q3grid.h>
 #include <qobject.h>
 #include <qwidget.h>
 #include <qspinbox.h>
 #include <qpalette.h>
 #include <qstatusbar.h>
 #include <qspinbox.h>
+#include <qlabel.h>
 //#include </usr/include/kde/kled.h>
 //#include "qfloatspinbox.h"
 
@@ -32,7 +33,7 @@ extern double desiredLaserWidth, desiredLaserAmp;
 
 class motionClass;
 class FloatSpinBox;
-class customWidget : public QVBox
+class customWidget : public Q3VBox
 {
 	Q_OBJECT
 	//friend class GUIinterfaceClass;		
