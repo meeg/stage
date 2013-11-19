@@ -783,7 +783,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			}		
 
 			//status = s.stepAndPulseSequence(whichID, 10.0, 1.0, 10, 0.0, 0.0);
-			status = stepAndPulseSequenceBothAxes(X_AXIS_ID, Y_AXIS_ID, 5000.0, 50000.0, 10000, 1000, 4, 3.0, 300.0);
+			status = stepAndPulseSequenceBothAxes(X_AXIS_ID, Y_AXIS_ID, 1, 1, 4, 4, 3.0, 300.0);
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
@@ -1015,75 +1015,63 @@ ID = (int) parsedReply[0];
 */
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-int stepAndPulseSequenceBothAxes(int ID1, int ID2, double startPos1, double startPos2, 
-						double stepSize1, double stepSize2, 
-											int numOfSteps, double	laserWidth, double laserAmp){
+int stepAndPulseSequenceBothAxes(int ID1, int ID2, double stepSize1, double stepSize2, int numOfSteps1, int numOfSteps2, double laserWidth, double laserAmp){
 	//starts at a known position, and pulses after each motion step
 	//step sizes in um, start positions in um.
 	
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	if (   ( stepSize1 <= 0.0 ) | ( ID1 < 0 ) | ( ID1 > 100 ) | ( numOfSteps < 1 ) | ( laserWidth <2 ) | (stepSize1 >
-		SLIDE_LENGTH_UM) | ( startPos1 < -1.0 * SLIDE_LENGTH_UM )  | ( startPos1 > SLIDE_LENGTH_UM )   ){
+	if (   ( stepSize1 <= 0.0 ) | ( ID1 < 0 ) | ( ID1 > 100 ) | ( numOfSteps1 < 1 ) | ( laserWidth <2 ) | (stepSize1 >
+		SLIDE_LENGTH_UM) ){
 		printf("ERR: stepAndPulseSequence().  Incorrect parameter; outside allowed range\n");
-		printf("ID=%d, startPos=%f, stepSize=%f, numOfIntervals=%d, duration=%f, intensity=%f\n", 
-						ID1, startPos1, stepSize1, numOfSteps, laserWidth, laserAmp);
+		printf("ID=%d, stepSize=%f, numOfIntervals=%d, duration=%f, intensity=%f\n", 
+						ID1, stepSize1, numOfSteps1, laserWidth, laserAmp);
 		s.stop(ID1);
 		return -1;			
 	}//~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
 	
-	//double pos;
+	double pos1,pos2;
 	int status;
-	//status = returnPosition(ID, &pos);
+	status = s.returnPosition(ID1, &pos1);
+	status = s.returnPosition(ID2, &pos2);
 	//if ( status == -1 ) return -1;
 	
-	
-	status = s.movePosAbs(ID1, startPos1 / 10000.0);			//moveAbs needs cm, so divide by 10000
-	if ( status == -1 ){
-		return -1;
-	}
-	status = s.movePosAbs(ID2, startPos2 / 10000.0);
-	if ( status == -1 ){
-		return -1;
-	}
-	
-	for(int i = 0; i < numOfSteps; i++){
-		double newPos1 = (startPos1 + i*stepSize1) / 10000.0;
-		double newPos2 = (startPos2 + i*stepSize2) / 10000.0;
-		status = s.movePosAbs(ID1, newPos1);
+	for(int i = 0; i < numOfSteps1; i++){
+		status = s.movePosRel(ID1,stepSize1);
 		if ( status == -1 ){
 			printf("ERR: stepAndPulseSequence() while stepping\n");
 			s.stop(ID1);
 			return -1;
 		}
-		status = s.movePosAbs(ID2, newPos2);
-		if ( status == -1 ){
-			printf("ERR: stepAndPulseSequence() while stepping\n");
-			s.stop(ID2);
-			return -1;
+		for(int i = 0; i < numOfSteps1; i++){
+			status = s.movePosRel(ID2, stepSize2);
+			if ( status == -1 ){
+				printf("ERR: stepAndPulseSequence() while stepping\n");
+				s.stop(ID2);
+				return -1;
+			}
+					
+			laserWidth = 3.0;
+			status = l.pulseLaser(laserWidth, laserAmp);
+			if ( status == -1 ){
+				printf("ERR: stepAndPulseSequence() setting laser\n");
+				s.stop(ID1);			
+				s.stop(ID2);						
+				return -1;
+			}
+			
+			printf("Pulsing Laser\n");
+			sleep (0.1);
 		}
-				
-		laserWidth = 3.0;
-		status = l.pulseLaser(laserWidth, laserAmp);
-		if ( status == -1 ){
-			printf("ERR: stepAndPulseSequence() setting laser\n");
-			s.stop(ID1);			
-			s.stop(ID2);						
-			return -1;
-		}
-		
-		printf("Pulsing Laser\n");
-		sleep (0.1);
-		
 	}
 	
-	status = s.gotoHomePoint(ID1);
+	status = s.movePosAbs(ID1,pos1);
 	if ( status == -1 ){
 		printf("ERR: stepAndPulseSequenceBothAxes() going home ID1\n");
 		s.stop(ID1);			
 		return -1;
 	}	
-	status = s.gotoHomePoint(ID2);	
+	status = s.movePosAbs(ID2,pos2);
 	if ( status == -1 ){
 		printf("ERR: stepAndPulseSequenceBothAxes() going home ID2\n");
 		s.stop(ID2);			
