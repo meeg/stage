@@ -52,6 +52,7 @@ class customWidget : public Q3VBox
 		QSpinBox *XrelBox;
 		QSpinBox *laserW, *laserA;
 		QStatusBar *statusBar;
+		QLabel *laserTriggerLabel;
 		QLCDNumber *currX,*currY, *currZ;
 		//int printXvalOnChange( int val);
 		//motionClass sp;		//passed in from stage.cc
@@ -87,6 +88,7 @@ class customWidget : public Q3VBox
 		int updateLaserAmp( void );
 		int sendLaserParamsToLaser( void );
 		int pulseLaser( void );
+		int toggleLaser( void );
 		
 };//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 

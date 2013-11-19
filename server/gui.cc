@@ -149,6 +149,8 @@ customWidget::customWidget( QWidget *parent, const char *name )
    	laserA->setValue( desiredLaserAmp ); 
 	QPushButton *loadLaserParamsButton = new QPushButton( "Load Laser Params", this, "laserparams" );
 	QPushButton *fireLaserButton = new QPushButton( "Trigger Laser", this, "firelaser" );
+
+	QPushButton *laserToggleButton = new QPushButton( "Laser Internal Trigger", this, "togglelaser" );
 	
 	QPushButton *getCurrPosButton = new QPushButton( "Get Positions", this, "getPositions" );
 	currX  = new QLCDNumber( 8, this, "currX (cm)" );
@@ -182,6 +184,7 @@ customWidget::customWidget( QWidget *parent, const char *name )
 	moveZabsButton->setFont( QFont( "Times", 12, QFont::Bold ) );	
 	loadLaserParamsButton->setFont( QFont( "Helvetica", 10, QFont::Bold ) );	 
 	fireLaserButton->setFont( QFont( "Helvetica", 10, QFont::Bold ) );	 
+	laserToggleButton->setFont( QFont( "Helvetica", 10, QFont::Bold ) );	 
 	getCurrPosButton->setFont( QFont( "Times", 15, QFont::Bold ) );
 	quitButton->setFont( QFont( "Times", 10, QFont::Bold ) );
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -216,13 +219,14 @@ customWidget::customWidget( QWidget *parent, const char *name )
 	connect( laserA, SIGNAL(valueChanged(int)), this, SLOT(updateLaserAmp()) );
 	connect( loadLaserParamsButton, SIGNAL(clicked()), this, SLOT( sendLaserParamsToLaser() ) );
 	connect( fireLaserButton, SIGNAL(clicked()), this, SLOT( pulseLaser() ) );
+	connect( laserToggleButton, SIGNAL(clicked()), this, SLOT( toggleLaser() ) );
 	connect( getCurrPosButton, SIGNAL(clicked()), this, SLOT( getPositionsFromMotors() ) );
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	
 	//connect the program interface to the GUI		    
 	statusBar = new QStatusBar( this, "statusbar" );
-	QLabel *laserTriggerLabel = new QLabel("text!",this);
-	statusBar->addWidget(laserTriggerLabel);
+	laserTriggerLabel = new QLabel("text!",this);
+	statusBar->addWidget(laserTriggerLabel,0,true);
 	setFixedHeight(950);
 	setFixedWidth(250);
 	statusBar->message("System Ready");	
@@ -644,6 +648,32 @@ int customWidget::pulseLaser( void ){
 			//print out returned current position value for that axis
 		}
 		statusBar->message("Laser Pulse Done", statusDisplayTime);
+		return 0;		
+	#else
+		printf("Laser Not Active, Not Triggered\n");
+		return -1;	
+	#endif
+}
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~		
+int customWidget::toggleLaser( void ){
+	int status;
+	
+	#ifdef useLaser
+		//status = sp.sendLaserTrigger();
+/*
+		status = executeRequestedCommand(LASER_ID, TRIG_LASER, 0.0, 1);		
+		if ( status == -1 ) {
+			//error indicator light		
+			printf("Err in QT: trigger Laser\n");
+			statusBar->message("Err in Pulse Laser", statusDisplayTime);
+			return -1;
+		}else{
+			//print out returned current position value for that axis
+		}
+*/
+		laserTriggerLabel->setText("blah!");
+		statusBar->message("Laser Internal Trigger", statusDisplayTime);
 		return 0;		
 	#else
 		printf("Laser Not Active, Not Triggered\n");

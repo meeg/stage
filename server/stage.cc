@@ -251,7 +251,7 @@ int main( int argc, char **argv )
 		status = checkForValidID();		//always returns 0, but can change the position to ERR_POS
 		if (whichCommand == -1) {
 			pos = ERR_POS;
-			status = turnNumberIntoCharArray( ID, replyArr, pos );		//ERR_POS denotes command not completed.  
+			sprintf(replyArr, "%d%f", ID, pos);		//ERR_POS denotes command not completed.  
 																					//Do this here because the cases below won't	execute
 		}//~~~~~~~~~~~~~~~~~~~~~~~~~~
 					
@@ -695,8 +695,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;		//could be (-1)
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 
 		case FIND_HOME:
@@ -712,8 +711,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 
 		case GOTO_HOME:
@@ -730,8 +728,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 
 		case REL_MOTION:
@@ -749,9 +746,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			status = s.returnPosition(whichID, &pos);
 			//printf("status from returnPosition():%d\n", status);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			//printf("status from turnNumberIntoCharArray():%d\n", status);
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 
 
@@ -768,8 +763,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 
 		case SEQ_1:
@@ -787,8 +781,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 
 
@@ -803,8 +796,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			//cout << replyArr << endl;
 			return status;					
 		case SET_LASER_WIDTH:
@@ -814,7 +806,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			//status = s.returnPosition(whichID, &pos);
 			//endProgramOnError(status);
 			pos = theParameter;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
+			sprintf(replyArr, "%d%f", whichID, pos);
 			return status;				
 			break;
 
@@ -825,7 +817,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			//status = s.returnPosition(ID, &pos);
 			//endProgramOnError(status);
 			pos = theParameter;			
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
+			sprintf(replyArr, "%d%f", whichID, pos);
 			return status;				
 			break;
 
@@ -833,7 +825,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			printf("LASER_TRIG\n");
 			status = l.sendLaserTrigger();
 			pos = 1234.5;				
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
+			sprintf(replyArr, "%d%f", whichID, pos);
 			return status;				
 			break;
 			
@@ -851,15 +843,13 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			break;
 			
 		default:
 			printf("Err: Invalid Command Received\n");
 			pos = ERR_POS;
-			status = turnNumberIntoCharArray( whichID, replyArr, pos );
-			if (status == -1 ) return status;
+			sprintf(replyArr, "%d%f", whichID, pos);
 			bzero(buffer,arrayLen);
 			//endProgram();
 			break;
