@@ -34,13 +34,13 @@
 #include <qslider.h>
 #include <qlcdnumber.h>
 #include <qfont.h>
-#include <qvbox.h>
-#include <qgrid.h>
+#include <q3vbox.h>
+#include <q3grid.h>
 #include<qobject.h>
 #include<qwidget.h>
 #include<qdialog.h>
-#include<qgroupbox.h>
-#include<qhbox.h>
+#include<q3groupbox.h>
+#include<q3hbox.h>
 //end qt related includes
 
 using namespace std;

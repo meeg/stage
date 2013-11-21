@@ -8,13 +8,13 @@
 #include <qslider.h>
 #include <qlcdnumber.h>
 #include <qfont.h>
-#include <qvbox.h>
-#include <qgrid.h>
+#include <q3vbox.h>
+#include <q3grid.h>
 #include<qobject.h>
 #include<qwidget.h>
 #include<qdialog.h>
-#include<qgroupbox.h>
-#include<qhbox.h>
+#include<q3groupbox.h>
+#include<q3hbox.h>
 #include<qstatusbar.h>
 //end qt related includes
 
@@ -34,7 +34,7 @@ extern double desiredXabs, desiredYabs, desiredZabs;
 extern double desiredLaserWidth, desiredLaserAmp;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
-class customWidget : public QVBox{
+class customWidget : public Q3VBox{
 	Q_OBJECT
 	//friend class GUIinterfaceClass;		
 	

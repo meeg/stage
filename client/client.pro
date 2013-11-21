@@ -26,3 +26,5 @@ unix {
 }
 QMAKE_CFLAGS_RELEASE -= -fno-exceptions
 QMAKE_CXXFLAGS_RELEASE -= -fno-exceptions
+#The following line was inserted by qt3to4
+QT +=  qt3support 
