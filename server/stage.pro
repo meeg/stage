@@ -32,7 +32,10 @@ unix {
   MOC_DIR = .moc
   OBJECTS_DIR = .obj
 }
+LIBS += `xml2-config --libs`
 QMAKE_CFLAGS_RELEASE -= -fno-exceptions
 QMAKE_CXXFLAGS_RELEASE -= -fno-exceptions
+QMAKE_CFLAGS_RELEASE += `xml2-config --cflags`
+QMAKE_CXXFLAGS_RELEASE += `xml2-config --cflags`
 #The following line was inserted by qt3to4
 QT +=  qt3support 

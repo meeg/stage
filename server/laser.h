@@ -39,7 +39,7 @@ class laserClass{
 		void flushL(void);
 		int writeLas(const char *output);
 		int getLasReply(char *result);
-		int checkLasACK(const char* outputArray, char *inputArray);
+		int writeLasAndGetReply(const char *output, char *result);
 		int writeLasAndCheckACK(const char *output);
 
 		//~~~~~~~~~~~ Laser Pulser ~~~~~~~~~~~~~
@@ -49,7 +49,6 @@ class laserClass{
 		int disableLaserFlowControl(void);
 		int laserEnableOutput( void );
 		int laserDisableOutput( void );
-		int laserTriggerHold( void );
 	public:	
 	
 		//~~~~~~~~~~~ Laser Pulser ~~~~~~~~~~~~~
@@ -60,6 +59,9 @@ class laserClass{
 		int sendLaserTrigger(void);
 		int pulseLaser(double duration, double intensity);
 		int laserLocalEnable( void );
+		bool isIntTriggerOn();
+		int laserTriggerInternal( void );
+		int laserTriggerHold( void );
 };
 
 #endif

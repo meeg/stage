@@ -178,6 +178,7 @@ int main( int argc, char **argv )
 	
 	//~~~~~~~~~~~~~~~~~~~~~~
 	memset(XMLpacket, 0, XMLstrLen); 
+	xmlInitParser();
 	//test XML output here
 	//int numParams = 2;
 	//just a test of the write capabilities of the server
@@ -228,9 +229,9 @@ int main( int argc, char **argv )
 		
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		xml = createIrrXMLReader( "xml.xml" );				//memory input
+		xmlDocPtr xmlInput = xmlParseFile("xml.xml");
 		//string XMLstring(XMLpacket);
-		if ( xml == NULL ){
+		if ( xmlInput == NULL ){
 			printf("error opening file/packet\n");
 			return -1;
 		}
@@ -238,7 +239,7 @@ int main( int argc, char **argv )
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~		status = sendArrRepl
 	  	
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		status = parseThroughXMLstring();		// parse through the xml string until end reached, and recover id,cmd, and params
+		status = parseThroughXMLstring(xmlInput);		// parse through the xml string until end reached, and recover id,cmd, and params
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~		status = sendArrRepl
 
 							
@@ -247,11 +248,12 @@ int main( int argc, char **argv )
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~		status = sendArrRepl
 		
 
+/*
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		status = checkForValidID();		//always returns 0, but can change the position to ERR_POS
 		if (whichCommand == -1) {
 			pos = ERR_POS;
-			sprintf(replyArr, "%d%f", ID, pos);		//ERR_POS denotes command not completed.  
+			sprintf(replyArr, "%d%f", ID, ERR_POS);		//ERR_POS denotes command not completed.  
 																					//Do this here because the cases below won't	execute
 		}//~~~~~~~~~~~~~~~~~~~~~~~~~~
 					
@@ -272,7 +274,7 @@ int main( int argc, char **argv )
 			status = initEverything();
 			endProgramOnError(status);		//if restarting worked, then just keep going.  But if it didn't, then exit	permanently
 		}//~~~~~~~~~~~~~~~~~~~~~~~~~~~		status = sendArrRepl
-
+*/
 		
 	
 	}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -456,6 +458,7 @@ int isAxisID(int ID){
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
 
+/*
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   	
 int writeXMLposToReturn(int ID, double pos, char* output){
 	
@@ -628,7 +631,7 @@ int writeXMLfile(int ID, int cmd, double* params, int numParams, char* output){
 	return -1;				
 
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
-
+*/
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 int checkForValidID( void ){
@@ -777,7 +780,7 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			}		
 
 			//status = s.stepAndPulseSequence(whichID, 10.0, 1.0, 10, 0.0, 0.0);
-			status = stepAndPulseSequenceBothAxes(X_AXIS_ID, Y_AXIS_ID, 1, 1, 4, 4, 3.0, 300.0);
+			status = stepAndPulseSequenceBothAxes(X_AXIS_ID, Y_AXIS_ID, 1, 1, 4, 4);
 			if (status == -1 ) return status;
 			status = s.returnPosition(whichID, &pos);
 			if (status == -1 ) return status;
@@ -801,31 +804,22 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 			return status;					
 		case SET_LASER_WIDTH:
 			printf("LASER_WIDTH\n");
-			//status = s.setLaserWidth_ns(laserWidth);
 			status = l.setLaserWidth_ns(theParameter);
-			//status = s.returnPosition(whichID, &pos);
-			//endProgramOnError(status);
-			pos = theParameter;
-			sprintf(replyArr, "%d%f", whichID, pos);
+			sprintf(replyArr, "%d%f", whichID, theParameter);
 			return status;				
 			break;
 
 		case SET_LASER_AMP:
 			printf("LASER_AMP\n");
 			status = l.setLaserAmp_mV(theParameter);
-			//status = s.setLaserAmp_mV(laserAmp);			
-			//status = s.returnPosition(ID, &pos);
-			//endProgramOnError(status);
-			pos = theParameter;			
-			sprintf(replyArr, "%d%f", whichID, pos);
+			sprintf(replyArr, "%d%f", whichID, theParameter);
 			return status;				
 			break;
 
 		case TRIG_LASER:
 			printf("LASER_TRIG\n");
 			status = l.sendLaserTrigger();
-			pos = 1234.5;				
-			sprintf(replyArr, "%d%f", whichID, pos);
+			sprintf(replyArr, "%d%f", whichID, 1234.5);
 			return status;				
 			break;
 			
@@ -859,68 +853,93 @@ int executeRequestedCommand(int whichID, int commandToExecute, double theParamet
 }	//end sub
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 
+//char* myXMLGetProp(xmlNodePtr node, 
+int executeXMLCommand( xmlNodePtr node, xmlNodePtr& responseNode ){
+	if (!strcmp((char *)node->name,"command")) {
+		responseNode = xmlNewNode(NULL,(xmlChar *)"response");
+		xmlAddChild(responseNode,xmlCopyNode(node,1));
+		char *cmd = (char *)xmlGetProp(node,(xmlChar *)"cmd");
+		printf("%s\n",cmd);
+		if (!strcmp(cmd,"KILL")) {
+			printf("KILL\n");
+			int status = s.killActiveMotors();
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"FIND_HOME")) {
+			printf("FIND_HOME\n");
+			int id = atoi((char *)xmlGetProp(node,(xmlChar *)"id"));
+			int status = s.runHomeProgram(id);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"GOTO_HOME")) {
+			printf("GOTO_HOME\n");
+			int id = atoi((char *)xmlGetProp(node,(xmlChar *)"id"));
+			int status = s.gotoHomePoint(id);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"REL_MOTION")) {
+			printf("REL_MOTION\n");
+			int id = atoi((char *)xmlGetProp(node,(xmlChar *)"id"));
+			double distance = atof((char *)xmlGetProp(node,(xmlChar *)"distance"));
+			int status = s.movePosRel(id, distance);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"ABS_MOTION")) {
+			printf("ABS_MOTION\n");
+			int id = atoi((char *)xmlGetProp(node,(xmlChar *)"id"));
+			double position = atof((char *)xmlGetProp(node,(xmlChar *)"position"));
+			int status = s.movePosAbs(id, position);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"SEQ_1")) {
+			printf("SEQ_1\n");
+			int id1 = atoi((char *)xmlGetProp(node,(xmlChar *)"id1"));
+			int id2 = atoi((char *)xmlGetProp(node,(xmlChar *)"id2"));
+			double stepsize1 = atof((char *)xmlGetProp(node,(xmlChar *)"stepsize1"));
+			double stepsize2 = atof((char *)xmlGetProp(node,(xmlChar *)"stepsize2"));
+			int numsteps1 = atoi((char *)xmlGetProp(node,(xmlChar *)"numsteps1"));
+			int numsteps2 = atoi((char *)xmlGetProp(node,(xmlChar *)"numsteps2"));
+			int status = stepAndPulseSequenceBothAxes(id1, id2, stepsize1, stepsize2, numsteps1, numsteps2);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"GIVE_POS")) {
+			printf("GIVE_POS\n");
+			int id = atoi((char *)xmlGetProp(node,(xmlChar *)"id"));
+			int status = s.returnPosition(id, &pos);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"SET_LASER_WIDTH")) {
+			printf("SET_LASER_WIDTH\n");
+			double width = atof((char *)xmlGetProp(node,(xmlChar *)"width"));
+			int status = l.setLaserWidth_ns(width);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"SET_LASER_AMP")) {
+			printf("SET_LASER_AMP\n");
+			double amplitude = atof((char *)xmlGetProp(node,(xmlChar *)"amplitude"));
+			int status = l.setLaserWidth_ns(amplitude);
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"TRIG_LASER")) {
+			printf("TRIG_LASER\n");
+			int status = l.sendLaserTrigger();
+			if (status == -1 ) return status;
+		} else if (!strcmp(cmd,"RESET_HOME")) {
+			printf("RESET_HOME\n");
+			int id = atoi((char *)xmlGetProp(node,(xmlChar *)"id"));
+			int status = s.resetAsHomePoint(id);
+			if (status == -1 ) return status;
+		}
+	}
+}
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
-int parseThroughXMLstring( void ){
+int parseThroughXMLstring( xmlDocPtr commands ){
 	printf("Parsing XML\n");
-	numGroups = 0;
+	xmlNodePtr commandNode = commands->children;
+	xmlNodePtr result;
 	
-	//ofstream File("xml.xml");
-	
-	while(xml && xml->read())
+	while (commandNode)
 	{
-		//printf("in xml loop\n");
-		switch(xml->getNodeType())
-		{
-		case EXN_TEXT:
-			//printf("in text\n");
-			// in this xml file, the only text which
-			// occurs is the messageText
-			cmdStr = xml->getNodeData();
-			break;
-
-		case EXN_ELEMENT:
-			//printf("in element\n");
-			if (!strcmp("whichAxis", xml->getNodeName() )){
-			IDstr = xml->getAttributeValue("ID");
-			//printf("IDstr=%s\n", IDstr.c_str());
-			ID = atoi(IDstr.c_str());
-			printf("\ngot ID=%d\n",ID);
-		}else if (!strcmp("command", xml->getNodeName() )){
-			cmdStr = xml->getAttributeValue("cmd");
-			//printf("cmdStr=%s\n", cmdStr.c_str());
-			whichCommand = atoi( cmdStr.c_str() );
-			printf("got cmd=%d\n", whichCommand);
-			numGroups++;
-		}else if (!strcmp("parameter1", xml->getNodeName() )){
-			param1Str = xml->getAttributeValue("param1");
-			params[0] = atof( param1Str.c_str() );
-			printf("got params[0]=%f\n", params[0]);
-			numGroups++;				 
-		}else if (!strcmp("parameter2", xml->getNodeName() )){
-			 param1Str = xml->getAttributeValue("param2");
-			 params[1] = atof( param1Str.c_str() );
-			 printf("got params[1]=%f\n", params[1] );
-			 numGroups++;				 
-		}else if (!strcmp("laserWidth", xml->getNodeName() )){
-			 param1Str = xml->getAttributeValue("width");
-			 params[0] = atof( param1Str.c_str() );
-			 printf("got laserWidth=%f\n", params[0] );
-
-		}else if (!strcmp("laserAmp", xml->getNodeName() )){
-			 param1Str = xml->getAttributeValue("amp");
-			 params[0] = atof( param1Str.c_str() );
-			 printf("got laserAmp=%f\n", params[0] );
-
-		}
-		break;
-		}
+		executeXMLCommand(commandNode,result);
+		commandNode = commandNode->next;
 	}
 	  
 	return 0;
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 		
-
+/*
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~				
 int addLFtoEndofXMLstring( void ){
 	 //now add on the LF (ascii 10) to the end, which is necessary for the string to send properly over tcp.
@@ -951,7 +970,7 @@ int addLFtoEndofXMLstring( void ){
 		 printf("%d:%d\n", i, XMLpacket[i]);
 	 }
  }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- 
+ */
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 int sendArrReply( char* replyArr ){
@@ -1005,16 +1024,15 @@ ID = (int) parsedReply[0];
 */
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-int stepAndPulseSequenceBothAxes(int ID1, int ID2, double stepSize1, double stepSize2, int numOfSteps1, int numOfSteps2, double laserWidth, double laserAmp){
+int stepAndPulseSequenceBothAxes(int ID1, int ID2, double stepSize1, double stepSize2, int numOfSteps1, int numOfSteps2){
 	//starts at a known position, and pulses after each motion step
 	//step sizes in um, start positions in um.
 	
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	if (   ( stepSize1 <= 0.0 ) | ( ID1 < 0 ) | ( ID1 > 100 ) | ( numOfSteps1 < 1 ) | ( laserWidth <2 ) | (stepSize1 >
-		SLIDE_LENGTH_UM) ){
+	if (   ( stepSize1 <= 0.0 ) | ( ID1 < 0 ) | ( ID1 > 100 ) | ( numOfSteps1 < 1 ) | (stepSize1 > SLIDE_LENGTH_UM) ){
 		printf("ERR: stepAndPulseSequence().  Incorrect parameter; outside allowed range\n");
-		printf("ID=%d, stepSize=%f, numOfIntervals=%d, duration=%f, intensity=%f\n", 
-						ID1, stepSize1, numOfSteps1, laserWidth, laserAmp);
+		printf("ID=%d, stepSize=%f, numOfIntervals=%d\n", 
+						ID1, stepSize1, numOfSteps1);
 		s.stop(ID1);
 		return -1;			
 	}//~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1033,7 +1051,7 @@ int stepAndPulseSequenceBothAxes(int ID1, int ID2, double stepSize1, double step
 			s.stop(ID1);
 			return -1;
 		}
-		for(int i = 0; i < numOfSteps1; i++){
+		for(int i = 0; i < numOfSteps2; i++){
 			status = s.movePosRel(ID2, stepSize2);
 			if ( status == -1 ){
 				printf("ERR: stepAndPulseSequence() while stepping\n");
@@ -1041,8 +1059,7 @@ int stepAndPulseSequenceBothAxes(int ID1, int ID2, double stepSize1, double step
 				return -1;
 			}
 					
-			laserWidth = 3.0;
-			status = l.pulseLaser(laserWidth, laserAmp);
+			status = l.sendLaserTrigger();
 			if ( status == -1 ){
 				printf("ERR: stepAndPulseSequence() setting laser\n");
 				s.stop(ID1);			

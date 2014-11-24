@@ -108,33 +108,52 @@ int laserClass::getLasReply(char *result){
 	return 0;
 }
 
-int laserClass::checkLasACK( const char* outputArray, char* inputArray ){
-	char * inputPtr = inputArray;
+int laserClass::writeLasAndCheckACK( const char* output ){
+	char replyData[254];
+	writeLas(output);
+	getLasReply( replyData);	
+	char * inputPtr = replyData;
 
 	//for (int i=0;i<strlen(outputArray);i++) printf("%d\t%d\n",inputPtr[i],outputArray[i]);
-	if ( strncmp(inputPtr,outputArray,strlen(outputArray)) != 0 ){
+	if ( strncmp(inputPtr,output,strlen(output)) != 0 ){
 		printf("No echo\n");
 		//return -1;
 	} else {
-		inputPtr+=strlen(outputArray);
+		inputPtr+=strlen(output);
 	}
 
 		
 	char * ack="\r\n\r\nReady for command > ";
 	//for (int i=0;i<strlen(inputPtr);i++) printf("%d\t%d\n",inputPtr[i],ack[i]);
 	if ( strncmp(inputPtr,ack,strlen(ack)) != 0 ){
-		printf("Not an ACK: ReplyString=%s\n",inputArray);
+		printf("Not an ACK: ReplyString=%s\n",replyData);
 		return -1;
 	}
-	printf("ACK received to command: %s\n", outputArray);
+	printf("ACK received to command: %s\n", output);
 	return 0;
 }
 
-int laserClass::writeLasAndCheckACK( const char* output ){
+int laserClass::writeLasAndGetReply( const char* output, char *result ){
 	char replyData[254];
 	writeLas(output);
 	getLasReply( replyData);	
-	return checkLasACK( output, replyData );
+
+	char * inputPtr = replyData;
+	if ( strncmp(inputPtr,output,strlen(output)) != 0 ){
+		printf("No echo\n");
+		return -1;
+	} else {
+		inputPtr+=strlen(output);
+	}
+	char * ack="\r\n\r\nReady for command > ";
+	if ( strcmp(inputPtr+strlen(inputPtr)-strlen(ack),ack) != 0 ){
+		printf("No echo\n");
+		return -1;
+	} else {
+		inputPtr[strlen(inputPtr)-strlen(ack)] = '\0';
+	}
+	strcpy(result,inputPtr);
+	return 0;
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -207,6 +226,12 @@ int laserClass::laserEnableOutput( void ){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 int laserClass::laserDisableOutput( void ){
 	strcpy(output,"output off\r");
+	return writeLasAndCheckACK(output);
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int laserClass::laserTriggerInternal( void ){
+	strcpy(output,"trigger:source internal\r");
 	return writeLasAndCheckACK(output);
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -318,6 +343,13 @@ int laserClass::laserLocalEnable( void ){
 	
 }//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+bool laserClass::isIntTriggerOn( void ){
+	char state[254];
+	writeLasAndGetReply("trigger:source?\r",state);
+printf("%s\n",state);
+	return strcmp(state,"INT");
+}//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 //=================================================================================
 //=================================================================================
